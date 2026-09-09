@@ -1,7 +1,9 @@
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 
-const DATA_FILE = path.join(process.cwd(), 'src', 'data', 'custom_orders.json');
+const BUNDLE_FILE = path.join(process.cwd(), 'src', 'data', 'custom_orders.json');
+const WRITABLE_FILE = path.join(os.tmpdir(), 'creasphere_custom_orders.json');
 
 const INITIAL_CUSTOM_ORDERS = [
   {
@@ -23,47 +25,70 @@ const INITIAL_CUSTOM_ORDERS = [
 ];
 
 export function getCustomOrders() {
-  try {
-    if (fs.existsSync(DATA_FILE)) {
-      const content = fs.readFileSync(DATA_FILE, 'utf-8');
-      return JSON.parse(content);
-    }
-  } catch (err) {
-    console.warn('Could not read custom_orders.json:', err.message);
+  if (globalThis.__creasphere_custom_orders && Array.isArray(globalThis.__creasphere_custom_orders)) {
+    return globalThis.__creasphere_custom_orders;
   }
-  return INITIAL_CUSTOM_ORDERS;
+
+  try {
+    if (fs.existsSync(WRITABLE_FILE)) {
+      const content = fs.readFileSync(WRITABLE_FILE, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        globalThis.__creasphere_custom_orders = parsed;
+        return parsed;
+      }
+    }
+  } catch (e) {}
+
+  try {
+    if (fs.existsSync(BUNDLE_FILE)) {
+      const content = fs.readFileSync(BUNDLE_FILE, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        globalThis.__creasphere_custom_orders = parsed;
+        return parsed;
+      }
+    }
+  } catch (err) {}
+
+  globalThis.__creasphere_custom_orders = [...INITIAL_CUSTOM_ORDERS];
+  return globalThis.__creasphere_custom_orders;
 }
 
 export function addCustomOrder(order) {
+  const list = getCustomOrders();
+  const updated = [order, ...list];
+  globalThis.__creasphere_custom_orders = updated;
+
   try {
-    const list = getCustomOrders();
-    const updated = [order, ...list];
-    const dir = path.dirname(DATA_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(DATA_FILE, JSON.stringify(updated, null, 2), 'utf-8');
-    return order;
-  } catch (err) {
-    console.warn('Could not write to custom_orders.json:', err.message);
-    return order;
-  }
+    fs.writeFileSync(WRITABLE_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+  } catch (e) {}
+
+  try {
+    const dir = path.dirname(BUNDLE_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(BUNDLE_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+  } catch (err) {}
+
+  return order;
 }
 
 export function updateCustomOrderStatus(id, newStatus) {
+  const list = getCustomOrders();
+  const updated = list.map((item) =>
+    item.id === id || item.order_number === id ? { ...item, status: newStatus } : item
+  );
+  globalThis.__creasphere_custom_orders = updated;
+
   try {
-    const list = getCustomOrders();
-    const updated = list.map((item) =>
-      item.id === id || item.order_number === id ? { ...item, status: newStatus } : item
-    );
-    const dir = path.dirname(DATA_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(DATA_FILE, JSON.stringify(updated, null, 2), 'utf-8');
-    return updated;
-  } catch (err) {
-    console.warn('Could not update custom_orders.json:', err.message);
-    return [];
-  }
+    fs.writeFileSync(WRITABLE_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+  } catch (e) {}
+
+  try {
+    const dir = path.dirname(BUNDLE_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(BUNDLE_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+  } catch (err) {}
+
+  return updated;
 }

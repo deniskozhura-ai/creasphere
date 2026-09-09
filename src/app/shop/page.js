@@ -4,8 +4,11 @@ import ProductCard from '@/components/ProductCard';
 import Pagination from '@/components/Pagination';
 import SortSelect from '@/components/SortSelect';
 import CustomOrderBanner from '@/components/CustomOrderBanner';
+import ShopProductGrid from '@/components/ShopProductGrid';
 import { DEMO_CATEGORIES } from '@/lib/demo-data';
 import { getProducts } from '@/lib/products-store';
+
+export const dynamic = 'force-dynamic';
 
 export const metadata = {
   title: 'Магазин — CreaSphere',
@@ -89,7 +92,7 @@ export default async function ShopPage({ searchParams }) {
     if (category) {
       const cat = categories.find(c => c.slug === category);
       if (cat) {
-        list = list.filter(p => p.category_id === cat.id);
+        list = list.filter(p => String(p.category_id) === String(cat.id));
       }
     }
 
@@ -228,22 +231,14 @@ export default async function ShopPage({ searchParams }) {
               </div>
             </div>
 
-            {products.length > 0 ? (
-              <div className="products-grid">
-                {products.map(product => (
-                  <ProductCard key={product.id} product={product} />
-                ))}
-              </div>
-            ) : (
-              <div className="cart-empty">
-                <div className="cart-empty__icon">🔍</div>
-                <h2 className="cart-empty__title">Товарів не знайдено</h2>
-                <p className="cart-empty__text">Спробуйте змінити фільтри або переглянути інші категорії</p>
-                <Link href="/shop" className="btn btn--primary">
-                  <span>Переглянути всі товари</span>
-                </Link>
-              </div>
-            )}
+            <ShopProductGrid
+              initialProducts={products}
+              currentCategory={category}
+              currentBrand={brand}
+              minPrice={minPrice}
+              maxPrice={maxPrice}
+              inStock={inStock}
+            />
 
             <Pagination
               currentPage={page}

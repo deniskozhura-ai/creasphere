@@ -1,7 +1,9 @@
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 
-const DATA_FILE = path.join(process.cwd(), 'src', 'data', 'space_bookings.json');
+const BUNDLE_FILE = path.join(process.cwd(), 'src', 'data', 'space_bookings.json');
+const WRITABLE_FILE = path.join(os.tmpdir(), 'creasphere_space_bookings.json');
 
 const INITIAL_SPACE_BOOKINGS = [
   {
@@ -35,47 +37,70 @@ const INITIAL_SPACE_BOOKINGS = [
 ];
 
 export function getSpaceBookings() {
-  try {
-    if (fs.existsSync(DATA_FILE)) {
-      const content = fs.readFileSync(DATA_FILE, 'utf-8');
-      return JSON.parse(content);
-    }
-  } catch (err) {
-    console.warn('Could not read space_bookings.json:', err.message);
+  if (globalThis.__creasphere_space_bookings && Array.isArray(globalThis.__creasphere_space_bookings)) {
+    return globalThis.__creasphere_space_bookings;
   }
-  return INITIAL_SPACE_BOOKINGS;
+
+  try {
+    if (fs.existsSync(WRITABLE_FILE)) {
+      const content = fs.readFileSync(WRITABLE_FILE, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        globalThis.__creasphere_space_bookings = parsed;
+        return parsed;
+      }
+    }
+  } catch (e) {}
+
+  try {
+    if (fs.existsSync(BUNDLE_FILE)) {
+      const content = fs.readFileSync(BUNDLE_FILE, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        globalThis.__creasphere_space_bookings = parsed;
+        return parsed;
+      }
+    }
+  } catch (err) {}
+
+  globalThis.__creasphere_space_bookings = [...INITIAL_SPACE_BOOKINGS];
+  return globalThis.__creasphere_space_bookings;
 }
 
 export function addSpaceBooking(booking) {
+  const list = getSpaceBookings();
+  const updated = [booking, ...list];
+  globalThis.__creasphere_space_bookings = updated;
+
   try {
-    const list = getSpaceBookings();
-    const updated = [booking, ...list];
-    const dir = path.dirname(DATA_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(DATA_FILE, JSON.stringify(updated, null, 2), 'utf-8');
-    return booking;
-  } catch (err) {
-    console.warn('Could not write to space_bookings.json:', err.message);
-    return booking;
-  }
+    fs.writeFileSync(WRITABLE_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+  } catch (e) {}
+
+  try {
+    const dir = path.dirname(BUNDLE_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(BUNDLE_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+  } catch (err) {}
+
+  return booking;
 }
 
 export function updateSpaceBookingStatus(id, newStatus) {
+  const list = getSpaceBookings();
+  const updated = list.map((item) =>
+    item.id === id || item.booking_number === id ? { ...item, status: newStatus } : item
+  );
+  globalThis.__creasphere_space_bookings = updated;
+
   try {
-    const list = getSpaceBookings();
-    const updated = list.map((item) =>
-      item.id === id || item.booking_number === id ? { ...item, status: newStatus } : item
-    );
-    const dir = path.dirname(DATA_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(DATA_FILE, JSON.stringify(updated, null, 2), 'utf-8');
-    return updated;
-  } catch (err) {
-    console.warn('Could not update space_bookings.json:', err.message);
-    return [];
-  }
+    fs.writeFileSync(WRITABLE_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+  } catch (e) {}
+
+  try {
+    const dir = path.dirname(BUNDLE_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(BUNDLE_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+  } catch (err) {}
+
+  return updated;
 }

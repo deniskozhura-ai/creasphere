@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
 export default function AdminProductsManager({ initialProducts }) {
@@ -9,6 +9,19 @@ export default function AdminProductsManager({ initialProducts }) {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+
+  useEffect(() => {
+    try {
+      const localCustom = JSON.parse(localStorage.getItem('creasphere_custom_products') || '[]');
+      if (Array.isArray(localCustom) && localCustom.length > 0) {
+        setProducts((prev) => {
+          const existingIds = new Set(prev.map((p) => p.id));
+          const toAdd = localCustom.filter((p) => !existingIds.has(p.id));
+          return [...toAdd, ...prev];
+        });
+      }
+    } catch (e) {}
+  }, []);
 
   const [form, setForm] = useState({
     name: '',
@@ -64,7 +77,15 @@ export default function AdminProductsManager({ initialProducts }) {
 
       const data = await res.json();
       if (res.ok && data.product) {
-        setProducts((prev) => [data.product, ...prev]);
+        setProducts((prev) => {
+          const updated = [data.product, ...prev];
+          try {
+            const localCustom = JSON.parse(localStorage.getItem('creasphere_custom_products') || '[]');
+            localStorage.setItem('creasphere_custom_products', JSON.stringify([data.product, ...localCustom.filter(p => p.id !== data.product.id)]));
+          } catch(err) {}
+          return updated;
+        });
+
         setIsModalOpen(false);
         setForm({
           name: '',
@@ -97,6 +118,10 @@ export default function AdminProductsManager({ initialProducts }) {
       const res = await fetch(`/api/products?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
         setProducts((prev) => prev.filter((p) => p.id !== id && p.sku !== id));
+        try {
+          const localCustom = JSON.parse(localStorage.getItem('creasphere_custom_products') || '[]');
+          localStorage.setItem('creasphere_custom_products', JSON.stringify(localCustom.filter((p) => p.id !== id && p.sku !== id)));
+        } catch(err) {}
       }
     } catch (err) {
       console.error(err);
