@@ -1,5 +1,194 @@
 [
   {
+    "id": "ord-1788972711933-7f6bbd3c",
+    "order_number": "CS-811723",
+    "customer_name": "Audit Tester",
+    "customer_phone": "+380501234567",
+    "customer_email": "audit@example.com",
+    "delivery_city": "Павлоград",
+    "delivery_address": "Відділення №1",
+    "delivery_method": "nova_poshta",
+    "payment_method": "card",
+    "notes": "",
+    "items": [
+      {
+        "id": "p1",
+        "name": "Подарунковий бокс «Теплий вечір»",
+        "slug": "gift-box-warm-evening",
+        "sku": "CS-GIFT-01",
+        "price": 750,
+        "quantity": 2,
+        "total": 1500,
+        "image": "/gift_collection.webp"
+      }
+    ],
+    "total_amount": 1500,
+    "status": "pending",
+    "created_at": "2026-09-09 18:51"
+  },
+  {
+    "id": "ord-1788972664316-cec04068",
+    "order_number": "CS-264477",
+    "customer_name": "Audit Tester",
+    "customer_phone": "+380501234567",
+    "customer_email": "audit@example.com",
+    "delivery_city": "Павлоград",
+    "delivery_address": "Відділення №1",
+    "delivery_method": "nova_poshta",
+    "payment_method": "card",
+    "notes": "",
+    "items": [
+      {
+        "id": "p1",
+        "name": "Подарунковий бокс «Теплий вечір»",
+        "slug": "gift-box-warm-evening",
+        "sku": "CS-GIFT-01",
+        "price": 750,
+        "quantity": 2,
+        "total": 1500,
+        "image": "/gift_collection.webp"
+      }
+    ],
+    "total_amount": 1500,
+    "status": "pending",
+    "created_at": "2026-09-09 18:51"
+  },
+  {
+    "id": "ord-1788972627373-790e67be",
+    "order_number": "CS-739920",
+    "customer_name": "Audit Tester",
+    "customer_phone": "+380501234567",
+    "customer_email": "audit@example.com",
+    "delivery_city": "Павлоград",
+    "delivery_address": "Відділення №1",
+    "delivery_method": "nova_poshta",
+    "payment_method": "card",
+    "notes": "",
+    "items": [
+      {
+        "id": "p1",
+        "name": "Подарунковий бокс «Теплий вечір»",
+        "slug": "gift-box-warm-evening",
+        "sku": "CS-GIFT-01",
+        "price": 750,
+        "quantity": 2,
+        "total": 1500,
+        "image": "/gift_collection.webp"
+      }
+    ],
+    "total_amount": 1500,
+    "status": "pending",
+    "created_at": "2026-09-09 18:50"
+  },
+  {
+    "id": "ord-1788965178528-8ec40249",
+    "order_number": "CS-826341",
+    "customer_name": "Audit Tester",
+    "customer_phone": "+380501234567",
+    "customer_email": "audit@example.com",
+    "delivery_city": "Павлоград",
+    "delivery_address": "Відділення №1",
+    "delivery_method": "nova_poshta",
+    "payment_method": "card",
+    "notes": "",
+    "items": [
+      {
+        "id": "p1",
+        "name": "Подарунковий бокс «Теплий вечір»",
+        "slug": "gift-box-warm-evening",
+        "sku": "CS-GIFT-01",
+        "price": 750,
+        "quantity": 2,
+        "total": 1500,
+        "image": "/gift_collection.webp"
+      }
+    ],
+    "total_amount": 1500,
+    "status": "pending",
+    "created_at": "2026-09-09 16:46"
+  },
+  {
+    "id": "ord-1788965131556-44797b0b",
+    "order_number": "CS-152056",
+    "customer_name": "Audit Tester",
+    "customer_phone": "+380501234567",
+    "customer_email": "audit@example.com",
+    "delivery_city": "Павлоград",
+    "delivery_address": "Відділення №1",
+    "delivery_method": "nova_poshta",
+    "payment_method": "card",
+    "notes": "",
+    "items": [
+      {
+        "id": "p1",
+        "name": "Подарунковий бокс «Теплий вечір»",
+        "slug": "gift-box-warm-evening",
+        "sku": "CS-GIFT-01",
+        "price": 750,
+        "quantity": 2,
+        "total": 1500,
+        "image": "/gift_collection.webp"
+      }
+    ],
+    "total_amount": 1500,
+    "status": "pending",
+    "created_at": "2026-09-09 16:45"
+  },
+  {
+    "id": "ord-1788965106404-1367354c",
+    "order_number": "CS-516059",
+    "customer_name": "Audit Tester",
+    "customer_phone": "+380501234567",
+    "customer_email": "audit@example.com",
+    "delivery_city": "Павлоград",
+    "delivery_address": "Відділення №1",
+    "delivery_method": "nova_poshta",
+    "payment_method": "card",
+    "notes": "",
+    "items": [
+      {
+        "id": "p1",
+        "name": "Подарунковий бокс «Теплий вечір»",
+        "slug": "gift-box-warm-evening",
+        "sku": "CS-GIFT-01",
+        "price": 750,
+        "quantity": 2,
+        "total": 1500,
+        "image": "/gift_collection.webp"
+      }
+    ],
+    "total_amount": 1500,
+    "status": "pending",
+    "created_at": "2026-09-09 16:45"
+  },
+  {
+    "id": "ord-1788964944875-cad900b7",
+    "order_number": "CS-117213",
+    "customer_name": "Audit Tester",
+    "customer_phone": "+380501234567",
+    "customer_email": "audit@example.com",
+    "delivery_city": "Павлоград",
+    "delivery_address": "Відділення №1",
+    "delivery_method": "nova_poshta",
+    "payment_method": "card",
+    "notes": "",
+    "items": [
+      {
+        "id": "p1",
+        "name": "Подарунковий бокс «Теплий вечір»",
+        "slug": "gift-box-warm-evening",
+        "sku": "CS-GIFT-01",
+        "price": 750,
+        "quantity": 2,
+        "total": 1500,
+        "image": "/gift_collection.webp"
+      }
+    ],
+    "total_amount": 1500,
+    "status": "pending",
+    "created_at": "2026-09-09 16:42"
+  },
+  {
     "id": "ord-1788957570752",
     "order_number": "CS-782254",
     "customer_name": "Тестовий Покупець",

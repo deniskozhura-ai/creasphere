@@ -104,3 +104,21 @@ export function updateSpaceBookingStatus(id, newStatus) {
 
   return updated;
 }
+
+export function deleteSpaceBooking(id) {
+  const list = getSpaceBookings();
+  const updated = list.filter((item) => item.id !== id && item.booking_number !== id);
+  globalThis.__creasphere_space_bookings = updated;
+
+  try {
+    fs.writeFileSync(WRITABLE_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+  } catch (e) {}
+
+  try {
+    const dir = path.dirname(BUNDLE_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(BUNDLE_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+  } catch (err) {}
+
+  return true;
+}

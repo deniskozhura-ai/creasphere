@@ -81,8 +81,10 @@ export default function CheckoutPage() {
           delivery_method: formData.deliveryMethod,
           payment_method: formData.paymentMethod,
           notes: formData.comment,
-          items,
-          total: totalPrice,
+          items: items.map((item) => ({
+            productId: item.id || item.productId,
+            quantity: item.quantity,
+          })),
         }),
       });
 
@@ -200,7 +202,7 @@ export default function CheckoutPage() {
                 >
                   <option value="nova_poshta">Нова Пошта (відділення або поштомат)</option>
                   <option value="ukrposhta">Укрпошта</option>
-                  <option value="pickup">Самовивіз (м. Павлоград, вул. Незалежності)</option>
+                  <option value="pickup">Самовивіз (м. Павлоград, вул. Шевченка, 138б)</option>
                 </select>
               </div>
 

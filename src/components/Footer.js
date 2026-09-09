@@ -33,9 +33,15 @@ export default function Footer() {
             <Link href="/#services">Послуги</Link>
             <Link href="/#contact">Контакти</Link>
           </div>
-          <div className="footer__social">
-            <a href="https://instagram.com/creasphere2024" className="footer__social-link" aria-label="Instagram" target="_blank" rel="noopener">
+          <div className="footer__social" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <a href="https://instagram.com/creasphere" className="footer__social-link" aria-label="Instagram" target="_blank" rel="noopener">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+            </a>
+            <a href="https://t.me/creasphere" className="footer__social-link" aria-label="Telegram" target="_blank" rel="noopener">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.198 2.433a2.242 2.242 0 0 0-1.022.215l-16.5 7.5a.752.752 0 0 0 .104 1.407l4.72 1.57 2.257 6.97a.75.75 0 0 0 1.327.208l2.4-3.2 4.282 3.18a1.5 1.5 0 0 0 2.357-.96l2.97-15.33a1.5 1.5 0 0 0-1.895-1.56z"/></svg>
+            </a>
+            <a href="https://www.facebook.com/share/1BQ9KfUqPt/" className="footer__social-link" aria-label="Facebook" target="_blank" rel="noopener">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
             </a>
           </div>
         </div>

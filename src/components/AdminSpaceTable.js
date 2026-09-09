@@ -1,11 +1,29 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function AdminSpaceTable({ initialBookings }) {
   const [bookings, setBookings] = useState(initialBookings || []);
+  const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [updatingId, setUpdatingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+
+  useEffect(() => {
+    try {
+      const localBookings = JSON.parse(localStorage.getItem('creasphere_space_bookings') || '[]');
+      if (Array.isArray(localBookings) && localBookings.length > 0) {
+        setBookings((prev) => {
+          const existingIds = new Set(prev.map((b) => b.id || b.booking_number));
+          const newToAdd = localBookings.filter((b) => !existingIds.has(b.id || b.booking_number));
+          return [...newToAdd, ...prev];
+        });
+      }
+    } catch (e) {
+      console.warn('LocalStorage space bookings read error:', e);
+    }
+  }, []);
 
   const handleStatusChange = async (id, newStatus) => {
     setUpdatingId(id);
@@ -20,6 +38,17 @@ export default function AdminSpaceTable({ initialBookings }) {
         setBookings((prev) =>
           prev.map((b) => (b.id === id || b.booking_number === id ? { ...b, status: newStatus } : b))
         );
+        try {
+          const localBookings = JSON.parse(localStorage.getItem('creasphere_space_bookings') || '[]');
+          const updatedLocal = localBookings.map((b) =>
+            b.id === id || b.booking_number === id ? { ...b, status: newStatus } : b
+          );
+          localStorage.setItem('creasphere_space_bookings', JSON.stringify(updatedLocal));
+        } catch (e) {}
+
+        if (selectedBooking && (selectedBooking.id === id || selectedBooking.booking_number === id)) {
+          setSelectedBooking((prev) => ({ ...prev, status: newStatus }));
+        }
       }
     } catch (err) {
       console.error('Status update failed:', err);
@@ -28,9 +57,40 @@ export default function AdminSpaceTable({ initialBookings }) {
     }
   };
 
+  const handleDelete = async (id) => {
+    if (!confirm('Видалити цю заявку на оренду простору?')) return;
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/space-bookings?id=${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setBookings((prev) => prev.filter((b) => b.id !== id && b.booking_number !== id));
+        try {
+          const localBookings = JSON.parse(localStorage.getItem('creasphere_space_bookings') || '[]');
+          const updatedLocal = localBookings.filter((b) => b.id !== id && b.booking_number !== id);
+          localStorage.setItem('creasphere_space_bookings', JSON.stringify(updatedLocal));
+        } catch (e) {}
+        if (selectedBooking && (selectedBooking.id === id || selectedBooking.booking_number === id)) {
+          setSelectedBooking(null);
+        }
+      }
+    } catch (err) {
+      console.error('Delete space booking failed:', err);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const filteredBookings = bookings.filter((b) => {
-    if (filterStatus === 'all') return true;
-    return b.status === filterStatus;
+    if (filterStatus !== 'all' && b.status !== filterStatus) return false;
+    if (!search.trim()) return true;
+    const q = search.toLowerCase();
+    return (
+      b.booking_number?.toLowerCase().includes(q) ||
+      b.customer_name?.toLowerCase().includes(q) ||
+      b.customer_phone?.toLowerCase().includes(q) ||
+      b.event_type?.toLowerCase().includes(q) ||
+      b.notes?.toLowerCase().includes(q)
+    );
   });
 
   const getStatusBadge = (status) => {
@@ -66,44 +126,48 @@ export default function AdminSpaceTable({ initialBookings }) {
 
   return (
     <div>
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid var(--border, #e5e7eb)', paddingBottom: 12, flexWrap: 'wrap' }}>
-        {[
-          { id: 'all', label: 'Всі бронювання', count: bookings.length },
-          { id: 'new', label: 'Нові', count: bookings.filter((b) => b.status === 'new').length },
-          { id: 'confirmed', label: 'Підтверджені', count: bookings.filter((b) => b.status === 'confirmed').length },
-          { id: 'completed', label: 'Проведені', count: bookings.filter((b) => b.status === 'completed').length },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setFilterStatus(tab.id)}
-            style={{
-              padding: '6px 14px',
-              borderRadius: 20,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer',
-              border: filterStatus === tab.id ? 'none' : '1px solid var(--border, #d1d5db)',
-              background: filterStatus === tab.id ? 'var(--text, #283618)' : 'transparent',
-              color: filterStatus === tab.id ? '#fff' : 'var(--text, #333)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <span>{tab.label}</span>
-            <span
+      {/* Search & Tabs */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, gap: 14, flexWrap: 'wrap' }}>
+        <input
+          type="text"
+          placeholder="🔍 Пошук за ім'ям, телефоном або подією..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{
+            padding: '10px 16px',
+            borderRadius: 12,
+            border: '1px solid var(--border, #d1d5db)',
+            width: 340,
+            maxWidth: '100%',
+            fontSize: 14,
+          }}
+        />
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {[
+            { id: 'all', label: `Всі (${bookings.length})` },
+            { id: 'new', label: `🆕 Нові (${bookings.filter((b) => b.status === 'new').length})` },
+            { id: 'confirmed', label: `✅ Підтверджені (${bookings.filter((b) => b.status === 'confirmed').length})` },
+            { id: 'completed', label: `🎉 Проведені (${bookings.filter((b) => b.status === 'completed').length})` },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setFilterStatus(tab.id)}
               style={{
-                fontSize: 11,
-                padding: '1px 6px',
-                borderRadius: 10,
-                background: filterStatus === tab.id ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.06)',
+                padding: '8px 16px',
+                borderRadius: 20,
+                fontSize: 13,
+                fontWeight: filterStatus === tab.id ? 700 : 500,
+                border: '1px solid var(--border, #d1d5db)',
+                background: filterStatus === tab.id ? 'var(--primary, #606c38)' : '#fff',
+                color: filterStatus === tab.id ? '#fff' : 'var(--text, #283618)',
+                cursor: 'pointer',
               }}
             >
-              {tab.count}
-            </span>
-          </button>
-        ))}
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Table */}
@@ -113,66 +177,98 @@ export default function AdminSpaceTable({ initialBookings }) {
             <tr>
               <th>Номер</th>
               <th>Клієнт / Телефон</th>
-              <th>Подія</th>
+              <th>Тип події</th>
               <th>Дата та час</th>
-              <th>Гості / Тривалість</th>
+              <th>Гості / Час</th>
               <th>Статус</th>
-              <th>Змінити статус</th>
-              <th>Примітки</th>
+              <th>Дії</th>
             </tr>
           </thead>
           <tbody>
             {filteredBookings.length > 0 ? (
               filteredBookings.map((item) => (
-                <tr key={item.id}>
-                  <td style={{ fontWeight: 600 }}>{item.booking_number}</td>
+                <tr key={item.id || item.booking_number}>
+                  <td style={{ fontWeight: 700, color: 'var(--primary, #606c38)' }}>{item.booking_number}</td>
                   <td>
                     <div style={{ fontWeight: 600 }}>{item.customer_name}</div>
                     <a
-                      href={`tel:${item.customer_phone.replace(/\s+/g, '')}`}
-                      style={{ color: 'var(--sage, #606c38)', fontSize: 13, textDecoration: 'none' }}
+                      href={`tel:${item.customer_phone?.replace(/\s+/g, '')}`}
+                      style={{ color: 'var(--primary, #606c38)', fontSize: 13, textDecoration: 'none' }}
                     >
                       {item.customer_phone} 📞
                     </a>
                   </td>
-                  <td style={{ fontWeight: 500, maxWidth: 180 }}>{item.event_type}</td>
+                  <td style={{ fontWeight: 600, maxWidth: 200 }}>
+                    <div>{item.event_type}</div>
+                    {item.notes && (
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>
+                        {item.notes}
+                      </div>
+                    )}
+                  </td>
                   <td>
                     <div><strong>{item.event_date}</strong></div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>початок о {item.event_time}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>о {item.event_time}</div>
                   </td>
                   <td>
                     <div>👥 {item.guests_count} гостей</div>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>⏳ {item.duration_hours} год</div>
                   </td>
-                  <td>{getStatusBadge(item.status)}</td>
                   <td>
                     <select
                       value={item.status}
                       disabled={updatingId === item.id}
-                      onChange={(e) => handleStatusChange(item.id, e.target.value)}
+                      onChange={(e) => handleStatusChange(item.id || item.booking_number, e.target.value)}
                       style={{
-                        padding: '6px 10px',
+                        padding: '5px 8px',
                         borderRadius: 8,
                         fontSize: 12,
+                        fontWeight: 600,
                         border: '1px solid var(--border, #ccc)',
                         background: '#fff',
                         cursor: 'pointer',
                       }}
                     >
-                      <option value="new">Нова заявка</option>
-                      <option value="confirmed">Підтверджено</option>
-                      <option value="completed">Проведено</option>
-                      <option value="cancelled">Скасовано</option>
+                      <option value="new">🆕 Нова заявка</option>
+                      <option value="confirmed">✅ Підтверджено</option>
+                      <option value="completed">🎉 Проведено</option>
+                      <option value="cancelled">❌ Скасовано</option>
                     </select>
                   </td>
-                  <td style={{ fontSize: 12, color: 'var(--text-muted)', maxWidth: 220 }}>
-                    {item.notes || '—'}
+                  <td>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedBooking(item)}
+                        className="btn btn--ghost"
+                        style={{ padding: '4px 8px', fontSize: 12, borderRadius: 8 }}
+                      >
+                        Деталі
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(item.id || item.booking_number)}
+                        disabled={deletingId === (item.id || item.booking_number)}
+                        style={{
+                          padding: '4px 8px',
+                          fontSize: 12,
+                          borderRadius: 8,
+                          background: '#fee2e2',
+                          color: '#b91c1c',
+                          border: 'none',
+                          cursor: 'pointer',
+                        }}
+                        title="Видалити заявку"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)' }}>
+                <td colSpan={7} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)' }}>
                   Заявок не знайдено
                 </td>
               </tr>
@@ -180,6 +276,104 @@ export default function AdminSpaceTable({ initialBookings }) {
           </tbody>
         </table>
       </div>
+
+      {/* Details Modal */}
+      {selectedBooking && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.65)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: 20,
+          }}
+          onClick={() => setSelectedBooking(null)}
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: 20,
+              padding: 28,
+              maxWidth: 520,
+              width: '100%',
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, borderBottom: '1px solid #f0f0f0', paddingBottom: 14 }}>
+              <div>
+                <span style={{ fontSize: 12, color: '#6b7280', textTransform: 'uppercase', fontWeight: 700 }}>
+                  Бронювання простору
+                </span>
+                <h3 style={{ fontSize: 22, fontWeight: 800, margin: '2px 0 0', color: 'var(--primary, #606c38)' }}>
+                  #{selectedBooking.booking_number}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedBooking(null)}
+                style={{ background: '#f3f4f6', border: 'none', borderRadius: '50%', width: 32, height: 32, fontSize: 16, cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 14, lineHeight: 1.6, marginBottom: 24, background: '#f9fafb', padding: 16, borderRadius: 12 }}>
+              <div><strong>Замовник:</strong> {selectedBooking.customer_name}</div>
+              <div><strong>Телефон:</strong> <a href={`tel:${selectedBooking.customer_phone}`} style={{ color: 'var(--primary, #606c38)', fontWeight: 600 }}>{selectedBooking.customer_phone}</a></div>
+              <div><strong>Тип події:</strong> {selectedBooking.event_type}</div>
+              <div><strong>Дата та час:</strong> {selectedBooking.event_date} о {selectedBooking.event_time}</div>
+              <div><strong>Тривалість:</strong> {selectedBooking.duration_hours} години</div>
+              <div><strong>Кількість гостей:</strong> {selectedBooking.guests_count} осіб</div>
+              {selectedBooking.notes && (
+                <div style={{ background: '#fef3c7', padding: '8px 12px', borderRadius: 8, color: '#92400e' }}>
+                  <strong>Примітки / побажання:</strong>
+                  <p style={{ margin: '4px 0 0' }}>{selectedBooking.notes}</p>
+                </div>
+              )}
+              <div><strong>Статус:</strong> {getStatusBadge(selectedBooking.status)}</div>
+              <div><strong>Дата створення:</strong> {selectedBooking.created_at}</div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={() => handleDelete(selectedBooking.id || selectedBooking.booking_number)}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: 8,
+                  background: '#fee2e2',
+                  color: '#b91c1c',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: 13,
+                }}
+              >
+                Видалити заявку
+              </button>
+
+              <select
+                value={selectedBooking.status}
+                onChange={(e) => {
+                  handleStatusChange(selectedBooking.id || selectedBooking.booking_number, e.target.value);
+                  setSelectedBooking((prev) => ({ ...prev, status: e.target.value }));
+                }}
+                style={{ padding: '8px 12px', borderRadius: 8, fontWeight: 600, fontSize: 13 }}
+              >
+                <option value="new">🆕 Нова заявка</option>
+                <option value="confirmed">✅ Підтверджено</option>
+                <option value="completed">🎉 Проведено</option>
+                <option value="cancelled">❌ Скасовано</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

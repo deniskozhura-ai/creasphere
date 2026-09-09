@@ -1,71 +1,110 @@
 import { NextResponse } from 'next/server';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { getProducts, addProduct, updateProduct, deleteProduct } from '@/lib/products-store';
+import { requireAdmin } from '@/lib/auth';
+import { validateProductPayload, sanitizeString } from '@/lib/validation';
 
 export async function GET() {
-  const products = getProducts();
-  return NextResponse.json(products);
+  try {
+    if (isSupabaseConfigured) {
+      const { data: dbProducts, error } = await supabase
+        .from('products')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Supabase get products error:', error);
+        return NextResponse.json(
+          { error: 'Помилка отримання товарів з бази даних' },
+          { status: 500 }
+        );
+      }
+      return NextResponse.json(dbProducts || []);
+    }
+
+    const products = getProducts();
+    return NextResponse.json(products);
+  } catch (err) {
+    console.error('Get products error:', err);
+    return NextResponse.json(
+      { error: 'Не вдалося отримати список товарів' },
+      { status: 500 }
+    );
+  }
 }
 
 export async function POST(request) {
   try {
-    const body = await request.json();
-    const {
-      name,
-      sku,
-      category_id,
-      category_name,
-      price,
-      stock,
-      status,
-      material,
-      dimensions,
-      production_time,
-      description,
-      image,
-      images,
-    } = body;
+    // 1. Enforce Admin Authorization
+    const authError = await requireAdmin(request);
+    if (authError) return authError;
 
-    if (!name?.trim() || !price) {
-      return NextResponse.json(
-        { error: 'Назва товару та ціна є обов’язковими' },
-        { status: 400 }
-      );
+    // 2. Parse & Validate Payload
+    const body = await request.json();
+    const { isValid, errors, sanitized } = validateProductPayload(body);
+
+    if (!isValid) {
+      return NextResponse.json({ error: errors[0], errors }, { status: 400 });
     }
 
-    const slug = name
+    const slug = sanitized.name
       .toLowerCase()
       .replace(/[^a-z0-9а-яіїєґ]+/g, '-')
       .replace(/^-+|-+$/g, '') || `product-${Date.now()}`;
 
-    // Normalize images array
-    let productImages = [];
-    if (Array.isArray(images) && images.length > 0) {
-      productImages = images.filter((img) => typeof img === 'string' && img.trim());
-    }
-    if (productImages.length === 0 && image?.trim()) {
-      productImages = [image.trim()];
-    }
-    if (productImages.length === 0) {
-      productImages = ['/gift_collection.webp'];
-    }
-
     const newProduct = {
       id: `prod-${Date.now()}`,
-      name: name.trim(),
+      name: sanitized.name,
       slug,
-      sku: sku?.trim() || `CS-ART-${Date.now().toString().slice(-4)}`,
-      price: parseFloat(price) || 0,
-      stock: parseInt(stock) || 1,
-      status: status || 'in_stock',
-      category_id: category_id || '1',
-      category_name: category_name || 'Подарунки ручної роботи',
+      sku: sanitized.sku || `CS-ART-${Date.now().toString().slice(-4)}`,
+      price: sanitized.price,
+      stock: sanitized.stock,
+      status: sanitized.status,
+      category_id: sanitized.category_id,
+      category_name: sanitized.category_name,
       brand: 'CreaSphere Craft',
-      material: material?.trim() || 'Ручна робота',
-      dimensions: dimensions?.trim() || '',
-      production_time: production_time?.trim() || 'В наявності',
-      description: description?.trim() || 'Унікальний авторський виріб ручної роботи майстрів CreaSphere.',
-      images: productImages,
+      material: sanitized.material || 'Ручна робота',
+      dimensions: sanitized.dimensions,
+      production_time: sanitized.production_time,
+      description: sanitized.description || 'Унікальний авторський виріб ручної роботи майстрів CreaSphere.',
+      images: sanitized.images,
     };
+
+    if (isSupabaseConfigured) {
+      const { data: dbProduct, error } = await supabase
+        .from('products')
+        .insert([
+          {
+            name: newProduct.name,
+            slug: newProduct.slug,
+            sku: newProduct.sku,
+            description: newProduct.description,
+            price: newProduct.price,
+            stock: newProduct.stock,
+            brand: newProduct.brand,
+            material: newProduct.material,
+            dimensions: newProduct.dimensions,
+            images: newProduct.images,
+            status: newProduct.status,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error || !dbProduct) {
+        console.error('Supabase product insert error:', error);
+        return NextResponse.json(
+          { error: 'Помилка збереження товару в базі даних' },
+          { status: 503 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        product: dbProduct,
+        message: 'Товар успішно додано!',
+      });
+    }
 
     addProduct(newProduct);
 
@@ -85,27 +124,54 @@ export async function POST(request) {
 
 export async function PUT(request) {
   try {
+    // 1. Enforce Admin Authorization
+    const authError = await requireAdmin(request);
+    if (authError) return authError;
+
+    // 2. Parse & Validate
     const body = await request.json();
-    const { id, ...dataToUpdate } = body;
+    const id = sanitizeString(body.id, 60);
 
     if (!id) {
       return NextResponse.json({ error: 'ID товару обов’язковий' }, { status: 400 });
     }
 
-    if (dataToUpdate.price !== undefined) {
-      dataToUpdate.price = parseFloat(dataToUpdate.price) || 0;
-    }
-    if (dataToUpdate.stock !== undefined) {
-      dataToUpdate.stock = parseInt(dataToUpdate.stock) || 0;
-    }
-    if (Array.isArray(dataToUpdate.images)) {
-      dataToUpdate.images = dataToUpdate.images.filter((img) => typeof img === 'string' && img.trim());
-      if (dataToUpdate.images.length === 0) {
-        dataToUpdate.images = ['/gift_collection.webp'];
-      }
+    const { isValid, errors, sanitized } = validateProductPayload(body);
+    if (!isValid) {
+      return NextResponse.json({ error: errors[0], errors }, { status: 400 });
     }
 
-    const updated = updateProduct(id, dataToUpdate);
+    if (isSupabaseConfigured) {
+      const { data: dbUpdated, error } = await supabase
+        .from('products')
+        .update({
+          name: sanitized.name,
+          price: sanitized.price,
+          stock: sanitized.stock,
+          status: sanitized.status,
+          material: sanitized.material,
+          dimensions: sanitized.dimensions,
+          description: sanitized.description,
+          images: sanitized.images,
+          updated_at: new Date().toISOString(),
+        })
+        .or(`id.eq.${id},sku.eq.${id}`)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Supabase product update error:', error);
+        return NextResponse.json({ error: 'Помилка оновлення товару в базі даних' }, { status: 503 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        product: dbUpdated,
+        message: 'Товар оновлено!',
+      });
+    }
+
+    const updated = updateProduct(id, sanitized);
 
     return NextResponse.json({
       success: true,
@@ -120,16 +186,35 @@ export async function PUT(request) {
 
 export async function DELETE(request) {
   try {
+    // 1. Enforce Admin Authorization
+    const authError = await requireAdmin(request);
+    if (authError) return authError;
+
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const id = sanitizeString(searchParams.get('id'), 60);
 
     if (!id) {
       return NextResponse.json({ error: 'ID товару обов’язковий' }, { status: 400 });
     }
 
+    if (isSupabaseConfigured) {
+      const { error } = await supabase
+        .from('products')
+        .delete()
+        .or(`id.eq.${id},sku.eq.${id}`);
+
+      if (error) {
+        console.error('Supabase product delete error:', error);
+        return NextResponse.json({ error: 'Помилка видалення товару з бази даних' }, { status: 503 });
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
     const ok = deleteProduct(id);
     return NextResponse.json({ success: ok });
   } catch (err) {
+    console.error('Delete product API error:', err);
     return NextResponse.json({ error: 'Помилка видалення' }, { status: 500 });
   }
 }

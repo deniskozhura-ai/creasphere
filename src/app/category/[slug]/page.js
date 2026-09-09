@@ -1,8 +1,11 @@
 import Link from 'next/link';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import ProductCard from '@/components/ProductCard';
 import Pagination from '@/components/Pagination';
-import { DEMO_CATEGORIES, DEMO_PRODUCTS } from '@/lib/demo-data';
+import ShopProductGrid from '@/components/ShopProductGrid';
+import { DEMO_CATEGORIES } from '@/lib/demo-data';
+import { getProducts } from '@/lib/products-store';
+
+export const dynamic = 'force-dynamic';
 
 const PER_PAGE = 24;
 
@@ -116,13 +119,16 @@ export default async function CategoryPage({ params, searchParams }) {
   }
 
   if (!products) {
-    let list = DEMO_PRODUCTS.filter(p => p.category_id === category.id);
+    let list = getProducts().filter(p =>
+      String(p.category_id) === String(category.id) || p.category_slug === category.slug
+    );
+
     if (sort === 'price_asc') {
       list.sort((a, b) => a.price - b.price);
     } else if (sort === 'price_desc') {
       list.sort((a, b) => b.price - a.price);
     } else if (sort === 'name') {
-      list.sort((a, b) => a.name.localeCompare(b.name, 'uk'));
+      list.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'uk'));
     }
     count = list.length;
     products = list.slice(offset, offset + PER_PAGE);
@@ -168,19 +174,10 @@ export default async function CategoryPage({ params, searchParams }) {
             <span className="products-toolbar__count">{count} товарів</span>
           </div>
 
-          {products.length > 0 ? (
-            <div className="products-grid">
-              {products.map(product => (
-                <ProductCard key={product.id} product={product} />
-              ))}
-            </div>
-          ) : (
-            <div className="cart-empty">
-              <div className="cart-empty__icon">📦</div>
-              <h2 className="cart-empty__title">У цій категорії поки немає товарів</h2>
-              <Link href="/shop" className="btn btn--primary"><span>До магазину</span></Link>
-            </div>
-          )}
+          <ShopProductGrid
+            initialProducts={products}
+            currentCategory={category.slug}
+          />
 
           <Pagination
             currentPage={page}

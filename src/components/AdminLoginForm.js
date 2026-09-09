@@ -166,10 +166,7 @@ export default function AdminLoginForm({ onLoginSuccess }) {
           </button>
         </form>
 
-        <div style={{ marginTop: 24, paddingTop: 18, borderTop: '1px solid #eee', fontSize: 12, color: '#888' }}>
-          <p style={{ margin: '0 0 10px 0' }}>
-            🔑 Пароль за замовчуванням: <code style={{ background: '#f3f4f6', padding: '2px 6px', borderRadius: 4, color: '#111' }}>creasphere2024</code>
-          </p>
+        <div style={{ marginTop: 24, paddingTop: 18, borderTop: '1px solid #eee', fontSize: 13, color: '#888' }}>
           <Link href="/" style={{ color: 'var(--sage, #606c38)', textDecoration: 'none', fontWeight: 600 }}>
             ← Повернутися на головну сайту
           </Link>

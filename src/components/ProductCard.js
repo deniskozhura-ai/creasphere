@@ -7,11 +7,12 @@ export default function ProductCard({ product }) {
   const { addItem } = useCart();
   const inStock = product.status !== 'out_of_stock' && (product.stock > 0 || product.status === 'pre_order');
   const imageUrl = product.images?.[0] || product.image || null;
-  const displayPrice = Number(product.price || 0).toFixed(2);
+  const numPrice = Number(product.price || 0);
+  const displayPrice = numPrice % 1 === 0 ? numPrice : numPrice.toFixed(2);
 
   return (
     <div className="product-card">
-      <Link href={`/product/${product.slug}`} className="product-card__image">
+      <Link href={`/product/${product.slug || product.id}`} className="product-card__image">
         {imageUrl ? (
           <img src={imageUrl} alt={product.name} loading="lazy" />
         ) : (
@@ -27,7 +28,7 @@ export default function ProductCard({ product }) {
         {product.category_name && (
           <span className="product-card__category">{product.category_name}</span>
         )}
-        <Link href={`/product/${product.slug}`}>
+        <Link href={`/product/${product.slug || product.id}`}>
           <h3 className="product-card__name">{product.name}</h3>
         </Link>
         {product.sku && (

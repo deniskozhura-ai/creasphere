@@ -34,6 +34,16 @@ export default function CustomOrderModal({ isOpen, onClose }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Помилка');
 
+      if (data.order) {
+        try {
+          const prev = JSON.parse(localStorage.getItem('creasphere_custom_orders_list') || '[]');
+          localStorage.setItem(
+            'creasphere_custom_orders_list',
+            JSON.stringify([data.order, ...prev.filter((o) => o.id !== data.order.id)])
+          );
+        } catch (e) {}
+      }
+
       setSubmittedNumber(data.orderNumber);
     } catch (err) {
       setError(err.message || 'Сталася помилка при відправці');

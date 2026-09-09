@@ -10,8 +10,8 @@ const INITIAL_BOOKINGS = [
     id: 'wb-1',
     booking_number: 'MK-849202',
     customer_name: 'Марія Коваленко',
-    customer_phone: '+380 95 321 6543',
-    customer_email: 'mariya.k@gmail.com',
+    customer_phone: '+380 50 000 0004',
+    customer_email: 'mariya.demo@example.com',
     workshop_title: 'Гончарство та кераміка',
     participants_count: 2,
     preferred_date: '2026-09-12',
@@ -24,8 +24,8 @@ const INITIAL_BOOKINGS = [
     id: 'wb-2',
     booking_number: 'MK-849185',
     customer_name: 'Олександр Бойко',
-    customer_phone: '+380 67 987 6543',
-    customer_email: 'boyko.alex@ukr.net',
+    customer_phone: '+380 50 000 0005',
+    customer_email: 'boyko.demo@example.com',
     workshop_title: 'Дитячі свята та дні народження',
     participants_count: 6,
     preferred_date: '2026-09-15',
@@ -38,8 +38,8 @@ const INITIAL_BOOKINGS = [
     id: 'wb-3',
     booking_number: 'MK-849140',
     customer_name: 'Тетяна Мельник',
-    customer_phone: '+380 50 444 3322',
-    customer_email: 'tanya.melnik@gmail.com',
+    customer_phone: '+380 50 000 0006',
+    customer_email: 'tanya.demo@example.com',
     workshop_title: 'Ароматичні соєві свічки',
     participants_count: 1,
     preferred_date: '2026-09-10',
@@ -117,4 +117,22 @@ export function updateDemoBookingStatus(id, newStatus) {
   } catch (err) {}
 
   return updated;
+}
+
+export function deleteDemoBooking(id) {
+  const list = getDemoBookings();
+  const updated = list.filter((b) => b.id !== id && b.booking_number !== id);
+  globalThis.__creasphere_bookings = updated;
+
+  try {
+    fs.writeFileSync(WRITABLE_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+  } catch (e) {}
+
+  try {
+    const dir = path.dirname(BUNDLE_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(BUNDLE_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+  } catch (err) {}
+
+  return true;
 }

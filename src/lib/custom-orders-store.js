@@ -92,3 +92,21 @@ export function updateCustomOrderStatus(id, newStatus) {
 
   return updated;
 }
+
+export function deleteCustomOrder(id) {
+  const list = getCustomOrders();
+  const updated = list.filter((item) => item.id !== id && item.order_number !== id);
+  globalThis.__creasphere_custom_orders = updated;
+
+  try {
+    fs.writeFileSync(WRITABLE_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+  } catch (e) {}
+
+  try {
+    const dir = path.dirname(BUNDLE_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(BUNDLE_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+  } catch (err) {}
+
+  return true;
+}

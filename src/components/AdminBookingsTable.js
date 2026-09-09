@@ -1,14 +1,31 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useToast } from '@/components/Toast';
 
 export default function AdminBookingsTable({ initialBookings }) {
   const { showToast } = useToast();
-  const [bookings, setBookings] = useState(initialBookings);
+  const [bookings, setBookings] = useState(initialBookings || []);
+  const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [loadingId, setLoadingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+
+  useEffect(() => {
+    try {
+      const localBookings = JSON.parse(localStorage.getItem('creasphere_workshop_bookings') || '[]');
+      if (Array.isArray(localBookings) && localBookings.length > 0) {
+        setBookings((prev) => {
+          const existingIds = new Set(prev.map((b) => b.id || b.booking_number));
+          const newToAdd = localBookings.filter((b) => !existingIds.has(b.id || b.booking_number));
+          return [...newToAdd, ...prev];
+        });
+      }
+    } catch (e) {
+      console.warn('LocalStorage bookings read error:', e);
+    }
+  }, []);
 
   const handleStatusChange = async (id, newStatus) => {
     setLoadingId(id);
@@ -23,6 +40,14 @@ export default function AdminBookingsTable({ initialBookings }) {
         setBookings((prev) =>
           prev.map((b) => (b.id === id || b.booking_number === id ? { ...b, status: newStatus } : b))
         );
+        try {
+          const localBookings = JSON.parse(localStorage.getItem('creasphere_workshop_bookings') || '[]');
+          const updatedLocal = localBookings.map((b) =>
+            b.id === id || b.booking_number === id ? { ...b, status: newStatus } : b
+          );
+          localStorage.setItem('creasphere_workshop_bookings', JSON.stringify(updatedLocal));
+        } catch (e) {}
+
         if (selectedBooking && (selectedBooking.id === id || selectedBooking.booking_number === id)) {
           setSelectedBooking((prev) => ({ ...prev, status: newStatus }));
         }
@@ -37,6 +62,32 @@ export default function AdminBookingsTable({ initialBookings }) {
     }
   };
 
+  const handleDelete = async (id) => {
+    if (!confirm('Видалити цей запис на майстер-клас?')) return;
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/workshops/book?id=${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setBookings((prev) => prev.filter((b) => b.id !== id && b.booking_number !== id));
+        try {
+          const localBookings = JSON.parse(localStorage.getItem('creasphere_workshop_bookings') || '[]');
+          const updatedLocal = localBookings.filter((b) => b.id !== id && b.booking_number !== id);
+          localStorage.setItem('creasphere_workshop_bookings', JSON.stringify(updatedLocal));
+        } catch (e) {}
+        if (selectedBooking && (selectedBooking.id === id || selectedBooking.booking_number === id)) {
+          setSelectedBooking(null);
+        }
+        showToast('Запис видалено', 'success');
+      } else {
+        showToast('Помилка видалення', 'error');
+      }
+    } catch (err) {
+      showToast('Помилка видалення', 'error');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const getStatusBadge = (status) => {
     switch (status) {
       case 'confirmed':
@@ -44,7 +95,7 @@ export default function AdminBookingsTable({ initialBookings }) {
       case 'completed':
         return <span className="admin-badge admin-badge--completed">Завершено</span>;
       case 'cancelled':
-        return <span className="admin-badge" style={{ background: 'rgba(244, 67, 54, 0.1)', color: 'var(--error)' }}>Скасовано</span>;
+        return <span className="admin-badge" style={{ background: 'rgba(244, 67, 54, 0.1)', color: 'var(--error, #ef4444)' }}>Скасовано</span>;
       default:
         return <span className="admin-badge admin-badge--pending">Новий</span>;
     }
@@ -59,38 +110,64 @@ export default function AdminBookingsTable({ initialBookings }) {
     }
   };
 
-  const filtered = filterStatus === 'all'
-    ? bookings
-    : bookings.filter((b) => b.status === filterStatus);
+  const filtered = bookings.filter((b) => {
+    if (filterStatus !== 'all' && b.status !== filterStatus) return false;
+    if (!search.trim()) return true;
+    const q = search.toLowerCase();
+    return (
+      b.booking_number?.toLowerCase().includes(q) ||
+      b.customer_name?.toLowerCase().includes(q) ||
+      b.customer_phone?.toLowerCase().includes(q) ||
+      b.workshop_title?.toLowerCase().includes(q)
+    );
+  });
 
   return (
     <div>
-      {/* ── Filters ── */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
-        {[
-          { key: 'all', label: `Всі (${bookings.length})` },
-          { key: 'new', label: `Нові (${bookings.filter((b) => b.status === 'new').length})` },
-          { key: 'confirmed', label: `Підтверджені (${bookings.filter((b) => b.status === 'confirmed').length})` },
-          { key: 'completed', label: `Завершені (${bookings.filter((b) => b.status === 'completed').length})` },
-        ].map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            className={`admin-table__btn ${filterStatus === tab.key ? 'active' : ''}`}
-            onClick={() => setFilterStatus(tab.key)}
-            style={{
-              padding: '8px 16px',
-              fontSize: 13,
-              borderRadius: 'var(--radius-sm)',
-              fontWeight: filterStatus === tab.key ? 600 : 400,
-              background: filterStatus === tab.key ? 'var(--text)' : 'var(--bg)',
-              color: filterStatus === tab.key ? 'var(--text-light)' : 'var(--text)',
-              borderColor: filterStatus === tab.key ? 'var(--text)' : 'var(--border-2)',
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
+      {/* ── Search & Filters ── */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, gap: 14, flexWrap: 'wrap' }}>
+        <input
+          type="text"
+          placeholder="🔍 Пошук за ім'ям, номером або назвою МК..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{
+            padding: '10px 16px',
+            borderRadius: 12,
+            border: '1px solid var(--border, #d1d5db)',
+            width: 340,
+            maxWidth: '100%',
+            fontSize: 14,
+          }}
+        />
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {[
+            { key: 'all', label: `Всі (${bookings.length})` },
+            { key: 'new', label: `🔔 Нові (${bookings.filter((b) => b.status === 'new').length})` },
+            { key: 'confirmed', label: `✅ Підтверджені (${bookings.filter((b) => b.status === 'confirmed').length})` },
+            { key: 'completed', label: `✓ Завершені (${bookings.filter((b) => b.status === 'completed').length})` },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              className={`admin-table__btn ${filterStatus === tab.key ? 'active' : ''}`}
+              onClick={() => setFilterStatus(tab.key)}
+              style={{
+                padding: '8px 16px',
+                fontSize: 13,
+                borderRadius: 'var(--radius-sm)',
+                fontWeight: filterStatus === tab.key ? 700 : 500,
+                background: filterStatus === tab.key ? 'var(--primary, #606c38)' : '#fff',
+                color: filterStatus === tab.key ? '#fff' : 'var(--text, #283618)',
+                border: '1px solid var(--border, #d1d5db)',
+                cursor: 'pointer',
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── Table ── */}
@@ -112,21 +189,23 @@ export default function AdminBookingsTable({ initialBookings }) {
             {filtered.length > 0 ? (
               filtered.map((b) => (
                 <tr key={b.id || b.booking_number}>
-                  <td style={{ fontWeight: 600 }}>{b.booking_number}</td>
+                  <td style={{ fontWeight: 700, color: 'var(--primary, #606c38)' }}>{b.booking_number}</td>
                   <td>
-                    <div style={{ fontWeight: 500 }}>{b.customer_name}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{b.customer_phone}</div>
+                    <div style={{ fontWeight: 600 }}>{b.customer_name}</div>
+                    <a href={`tel:${b.customer_phone}`} style={{ fontSize: 13, color: 'var(--primary, #606c38)', textDecoration: 'none' }}>
+                      {b.customer_phone}
+                    </a>
                     {b.customer_email && (
                       <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{b.customer_email}</div>
                     )}
                   </td>
                   <td style={{ maxWidth: 220 }}>
-                    <div style={{ fontWeight: 500 }}>{b.workshop_title}</div>
+                    <div style={{ fontWeight: 600 }}>{b.workshop_title}</div>
                     {b.notes && (
                       <div
                         style={{
                           fontSize: 12,
-                          color: 'var(--text-2)',
+                          color: 'var(--text-2, #6b7280)',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
@@ -141,7 +220,7 @@ export default function AdminBookingsTable({ initialBookings }) {
                     <span style={{ fontWeight: 500 }}>{b.participants_count} люд.</span>
                   </td>
                   <td>
-                    <div style={{ fontSize: 13 }}>{b.preferred_date || '—'}</div>
+                    <div style={{ fontSize: 13, fontWeight: 500 }}>{b.preferred_date || '—'}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{b.preferred_time || ''}</div>
                   </td>
                   <td>{getStatusBadge(b.status)}</td>
@@ -149,37 +228,33 @@ export default function AdminBookingsTable({ initialBookings }) {
                     {b.created_at?.slice(0, 16)}
                   </td>
                   <td>
-                    <div className="admin-table__actions">
+                    <div className="admin-table__actions" style={{ display: 'flex', gap: 6 }}>
                       <button
                         type="button"
                         className="admin-table__btn"
                         onClick={() => setSelectedBooking(b)}
                         title="Детальніше"
+                        style={{ padding: '4px 8px', fontSize: 12, borderRadius: 8 }}
                       >
                         Деталі
                       </button>
-                      {b.status === 'new' && (
-                        <button
-                          type="button"
-                          className="admin-table__btn"
-                          style={{ color: 'var(--success)', borderColor: 'var(--success)' }}
-                          disabled={loadingId === b.id}
-                          onClick={() => handleStatusChange(b.id || b.booking_number, 'confirmed')}
-                        >
-                          Підтвердити
-                        </button>
-                      )}
-                      {b.status === 'confirmed' && (
-                        <button
-                          type="button"
-                          className="admin-table__btn"
-                          style={{ color: 'var(--text)', borderColor: 'var(--text)' }}
-                          disabled={loadingId === b.id}
-                          onClick={() => handleStatusChange(b.id || b.booking_number, 'completed')}
-                        >
-                          Завершити
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(b.id || b.booking_number)}
+                        disabled={deletingId === (b.id || b.booking_number)}
+                        style={{
+                          padding: '4px 8px',
+                          fontSize: 12,
+                          borderRadius: 8,
+                          background: '#fee2e2',
+                          color: '#b91c1c',
+                          border: 'none',
+                          cursor: 'pointer',
+                        }}
+                        title="Видалити запис"
+                      >
+                        ✕
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -187,7 +262,7 @@ export default function AdminBookingsTable({ initialBookings }) {
             ) : (
               <tr>
                 <td colSpan="8" style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
-                  Записів з таким статусом не знайдено
+                  Записів не знайдено
                 </td>
               </tr>
             )}
@@ -201,7 +276,8 @@ export default function AdminBookingsTable({ initialBookings }) {
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0,0,0,0.5)',
+            background: 'rgba(0,0,0,0.65)',
+            backdropFilter: 'blur(6px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -212,31 +288,36 @@ export default function AdminBookingsTable({ initialBookings }) {
         >
           <div
             style={{
-              background: 'var(--bg)',
-              borderRadius: 'var(--radius-lg)',
-              padding: 32,
+              background: '#fff',
+              borderRadius: 20,
+              padding: 28,
               maxWidth: 520,
               width: '100%',
-              boxShadow: 'var(--shadow-xl)',
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 22 }}>
-                Запис #{selectedBooking.booking_number}
-              </h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, borderBottom: '1px solid #f0f0f0', paddingBottom: 14 }}>
+              <div>
+                <span style={{ fontSize: 12, color: '#6b7280', textTransform: 'uppercase', fontWeight: 700 }}>
+                  Запис на майстер-клас
+                </span>
+                <h3 style={{ fontSize: 22, fontWeight: 800, margin: '2px 0 0', color: 'var(--primary, #606c38)' }}>
+                  #{selectedBooking.booking_number}
+                </h3>
+              </div>
               <button
                 type="button"
                 onClick={() => setSelectedBooking(null)}
-                style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer' }}
+                style={{ background: '#f3f4f6', border: 'none', borderRadius: '50%', width: 32, height: 32, fontSize: 16, cursor: 'pointer' }}
               >
                 ✕
               </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 14, lineHeight: 1.6, marginBottom: 28 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 14, lineHeight: 1.6, marginBottom: 24, background: '#f9fafb', padding: 16, borderRadius: 12 }}>
               <div><strong>Клієнт:</strong> {selectedBooking.customer_name}</div>
-              <div><strong>Телефон:</strong> <a href={`tel:${selectedBooking.customer_phone}`} style={{ color: 'var(--text)', textDecoration: 'underline' }}>{selectedBooking.customer_phone}</a></div>
+              <div><strong>Телефон:</strong> <a href={`tel:${selectedBooking.customer_phone}`} style={{ color: 'var(--primary, #606c38)', fontWeight: 600 }}>{selectedBooking.customer_phone}</a></div>
               {selectedBooking.customer_email && (
                 <div><strong>Email:</strong> {selectedBooking.customer_email}</div>
               )}
@@ -245,46 +326,57 @@ export default function AdminBookingsTable({ initialBookings }) {
               {selectedBooking.participant_age && (
                 <div><strong>Вік учасника(ів):</strong> {selectedBooking.participant_age}</div>
               )}
-              <div><strong>Бажана дата:</strong> {selectedBooking.preferred_date}</div>
-              <div><strong>Бажаний час:</strong> {selectedBooking.preferred_time}</div>
+              <div><strong>Бажана дата:</strong> {selectedBooking.preferred_date} ({selectedBooking.preferred_time || 'Час узгоджується'})</div>
               {selectedBooking.notes && (
-                <div style={{ background: 'var(--bg-cream)', padding: 12, borderRadius: 6 }}>
+                <div style={{ background: '#fef3c7', padding: '8px 12px', borderRadius: 8, color: '#92400e' }}>
                   <strong>Коментар / побажання:</strong>
-                  <p style={{ marginTop: 4, color: 'var(--text-2)' }}>{selectedBooking.notes}</p>
+                  <p style={{ margin: '4px 0 0' }}>{selectedBooking.notes}</p>
                 </div>
               )}
               <div><strong>Поточний статус:</strong> {getStatusBadge(selectedBooking.status)}</div>
               <div><strong>Дата створення:</strong> {selectedBooking.created_at}</div>
             </div>
 
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-              {selectedBooking.status !== 'confirmed' && (
-                <button
-                  type="button"
-                  className="btn btn--primary btn--sm"
-                  onClick={() => handleStatusChange(selectedBooking.id || selectedBooking.booking_number, 'confirmed')}
-                >
-                  <span>Підтвердити</span>
-                </button>
-              )}
-              {selectedBooking.status !== 'completed' && (
-                <button
-                  type="button"
-                  className="btn btn--ghost btn--sm"
-                  onClick={() => handleStatusChange(selectedBooking.id || selectedBooking.booking_number, 'completed')}
-                >
-                  <span>Завершити</span>
-                </button>
-              )}
-              {selectedBooking.status !== 'cancelled' && (
-                <button
-                  type="button"
-                  className="btn btn--danger btn--sm"
-                  onClick={() => handleStatusChange(selectedBooking.id || selectedBooking.booking_number, 'cancelled')}
-                >
-                  <span>Скасувати</span>
-                </button>
-              )}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => handleDelete(selectedBooking.id || selectedBooking.booking_number)}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: 8,
+                  background: '#fee2e2',
+                  color: '#b91c1c',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: 13,
+                }}
+              >
+                Видалити запис
+              </button>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                {selectedBooking.status !== 'confirmed' && (
+                  <button
+                    type="button"
+                    className="btn btn--primary btn--sm"
+                    onClick={() => handleStatusChange(selectedBooking.id || selectedBooking.booking_number, 'confirmed')}
+                    style={{ padding: '8px 14px', fontSize: 13, borderRadius: 8 }}
+                  >
+                    <span>Підтвердити</span>
+                  </button>
+                )}
+                {selectedBooking.status !== 'completed' && (
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm"
+                    onClick={() => handleStatusChange(selectedBooking.id || selectedBooking.booking_number, 'completed')}
+                    style={{ padding: '8px 14px', fontSize: 13, borderRadius: 8 }}
+                  >
+                    <span>Завершити</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

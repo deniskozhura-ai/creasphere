@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import ProductCard from '@/components/ProductCard';
-import { DEMO_PRODUCTS } from '@/lib/demo-data';
+import { getProducts } from '@/lib/products-store';
+import SearchProductGrid from '@/components/SearchProductGrid';
+
+export const dynamic = 'force-dynamic';
 
 export const metadata = {
   title: 'Пошук — CreaSphere',
@@ -35,11 +37,14 @@ export default async function SearchPage({ searchParams }) {
 
     if (products.length === 0) {
       const qLower = q.toLowerCase();
-      products = DEMO_PRODUCTS.filter(
+      const all = getProducts();
+      products = all.filter(
         (p) =>
-          p.name.toLowerCase().includes(qLower) ||
-          p.description.toLowerCase().includes(qLower) ||
-          p.brand?.toLowerCase().includes(qLower)
+          p.name?.toLowerCase().includes(qLower) ||
+          p.description?.toLowerCase().includes(qLower) ||
+          p.brand?.toLowerCase().includes(qLower) ||
+          p.category_name?.toLowerCase().includes(qLower) ||
+          p.material?.toLowerCase().includes(qLower)
       );
     }
   }
@@ -74,29 +79,7 @@ export default async function SearchPage({ searchParams }) {
         </form>
 
         {q ? (
-          products.length > 0 ? (
-            <div>
-              <div style={{ marginBottom: 24, color: 'var(--text-muted)', fontSize: 14 }}>
-                Знайдено {products.length} {products.length === 1 ? 'товар' : 'товарів'}
-              </div>
-              <div className="products-grid">
-                {products.map((product) => (
-                  <ProductCard key={product.id} product={product} />
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="cart-empty">
-              <div className="cart-empty__icon">🔍</div>
-              <h2 className="cart-empty__title">Нічого не знайдено</h2>
-              <p className="cart-empty__text">
-                За запитом «{q}» нічого не знайдено. Спробуйте змінити пошуковий запит.
-              </p>
-              <Link href="/shop" className="btn btn--primary">
-                <span>Переглянути весь каталог</span>
-              </Link>
-            </div>
-          )
+          <SearchProductGrid initialProducts={products} query={q} />
         ) : (
           <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '60px 0' }}>
             Введіть назву товару або ключове слово для пошуку

@@ -83,6 +83,15 @@ export default function WorkshopBookingForm({
       const data = await res.json();
 
       if (res.ok) {
+        if (data.booking) {
+          try {
+            const prev = JSON.parse(localStorage.getItem('creasphere_workshop_bookings') || '[]');
+            localStorage.setItem(
+              'creasphere_workshop_bookings',
+              JSON.stringify([data.booking, ...prev.filter((b) => b.id !== data.booking.id)])
+            );
+          } catch (e) {}
+        }
         setSubmittedBooking({
           number: data.bookingNumber,
           name: formData.name,

@@ -44,6 +44,16 @@ export default function SpaceBookingForm() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Помилка при створенні заявки');
 
+      if (data.booking) {
+        try {
+          const prev = JSON.parse(localStorage.getItem('creasphere_space_bookings') || '[]');
+          localStorage.setItem(
+            'creasphere_space_bookings',
+            JSON.stringify([data.booking, ...prev.filter((b) => b.id !== data.booking.id)])
+          );
+        } catch (e) {}
+      }
+
       setBookingResult(data.bookingNumber);
     } catch (err) {
       setError(err.message || 'Сталася помилка при відправці');
