@@ -1,10 +1,55 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import AdminLoginForm from '@/components/AdminLoginForm';
 
 export default function AdminLayout({ children }) {
   const pathname = usePathname();
+  const [isAuth, setIsAuth] = useState(null); // null = checking, false = show login, true = authenticated
+
+  useEffect(() => {
+    fetch('/api/admin/auth')
+      .then((res) => res.json())
+      .then((data) => {
+        setIsAuth(!!data.authenticated);
+      })
+      .catch(() => {
+        setIsAuth(false);
+      });
+  }, [pathname]);
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/admin/auth', { method: 'DELETE' });
+    } catch (e) {
+      console.error(e);
+    }
+    setIsAuth(false);
+  };
+
+  if (isAuth === null) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: '#f8f6f0',
+          color: 'var(--text-muted, #777)',
+          fontSize: 15,
+        }}
+      >
+        <span>Перевірка доступу до панелі...</span>
+      </div>
+    );
+  }
+
+  if (!isAuth) {
+    return <AdminLoginForm onLoginSuccess={() => setIsAuth(true)} />;
+  }
 
   const links = [
     { href: '/admin', label: 'Головна панель', icon: '📊' },
@@ -53,6 +98,29 @@ export default function AdminLayout({ children }) {
             );
           })}
         </nav>
+
+        <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: 'auto' }}>
+          <button
+            type="button"
+            onClick={handleLogout}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              background: 'none',
+              border: 'none',
+              color: 'rgba(255,255,255,0.6)',
+              cursor: 'pointer',
+              fontSize: 14,
+              padding: '8px 0',
+              textAlign: 'left',
+            }}
+          >
+            <span>🚪</span>
+            <span>Вийти з адмінки</span>
+          </button>
+        </div>
       </aside>
 
       <main className="admin-main">
