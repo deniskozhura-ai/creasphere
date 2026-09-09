@@ -27,6 +27,12 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import crypto from 'crypto';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder'
+);
 
 const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:3001';
 
@@ -79,6 +85,21 @@ async function runAllSecurityTests() {
   console.log('================================================================\n');
 
   let adminCookie = '';
+
+  // Ensure fresh catalog stock in temp store for test isolation
+  try {
+    const productsPath = path.resolve(process.cwd(), 'src', 'data', 'products.json');
+    const tmpProductsPath = path.join(os.tmpdir(), 'creasphere_products.json');
+    if (fs.existsSync(productsPath)) {
+      const initialProducts = JSON.parse(fs.readFileSync(productsPath, 'utf8'));
+      for (const p of initialProducts) {
+        p.stock = 100;
+        p.status = 'in_stock';
+      }
+      fs.writeFileSync(tmpProductsPath, JSON.stringify(initialProducts, null, 2), 'utf8');
+      fs.writeFileSync(productsPath, JSON.stringify(initialProducts, null, 2), 'utf8');
+    }
+  } catch (e) {}
 
   // -----------------------------------------------------------------
   // 1. UNAUTHENTICATED ADMIN ENDPOINT -> 401/403
@@ -605,6 +626,134 @@ async function runAllSecurityTests() {
   } catch (e) {
     assert(false, `Test 19 failed: ${e.message}`);
   }
+
+  // -----------------------------------------------------------------
+  // 20. PRODUCTION SESSION STORE UNAVAILABLE -> FAIL CLOSED
+  // -----------------------------------------------------------------
+  console.log('\n--- Test 20: Production Session Store Fail-Closed ---');
+  try {
+    const authPath = path.resolve(process.cwd(), 'src', 'lib', 'auth.js');
+    const authSrc = fs.readFileSync(authPath, 'utf8');
+
+    const hasProdCheckCreate = authSrc.includes("if (process.env.NODE_ENV === 'production')") &&
+      authSrc.includes("throw new Error('Persistent session store unavailable in production');");
+    const hasProdCheckValidate = authSrc.includes("if (process.env.NODE_ENV === 'production')") &&
+      authSrc.includes('return false;');
+    const hasProdCheckRequire = authSrc.includes("process.env.NODE_ENV === 'production' && !isSupabaseAdminConfigured") &&
+      authSrc.includes('status: 503');
+
+    assert(hasProdCheckCreate, 'Production createAdminSession fails closed (throws 503 error, never falls back to disk/memory)');
+    assert(hasProdCheckValidate, 'Production isValidAdminSession fails closed (returns false, never falls back to disk/memory)');
+    assert(hasProdCheckRequire, 'Production requireAdmin guard returns HTTP 503 if session store is unavailable');
+  } catch (e) {
+    assert(false, `Test 20 failed: ${e.message}`);
+  }
+
+  // -----------------------------------------------------------------
+  // 21. PRODUCTION RATE LIMITER UNAVAILABLE -> FAIL CLOSED
+  // -----------------------------------------------------------------
+  console.log('\n--- Test 21: Production Rate Limiter Fail-Closed ---');
+  try {
+    const rateLimitPath = path.resolve(process.cwd(), 'src', 'lib', 'rate-limit.js');
+    const rateLimitSrc = fs.readFileSync(rateLimitPath, 'utf8');
+
+    const hasProdCheckRateLimit = rateLimitSrc.includes("if (process.env.NODE_ENV === 'production')") &&
+      rateLimitSrc.includes('serviceUnavailable: true');
+    const hasProd503Response = rateLimitSrc.includes('if (result.serviceUnavailable)') &&
+      rateLimitSrc.includes('status: 503');
+
+    assert(hasProdCheckRateLimit, 'Production rateLimit fails closed (serviceUnavailable: true, never falls back to memory)');
+    assert(hasProd503Response, 'Production applyRateLimit returns HTTP 503 when external rate limiter is unavailable');
+  } catch (e) {
+    assert(false, `Test 21 failed: ${e.message}`);
+  }
+
+  // -----------------------------------------------------------------
+  // 22. DIRECT PUBLIC RPC check_rate_limit -> DENIED
+  // -----------------------------------------------------------------
+  console.log('\n--- Test 22: Direct Public RPC check_rate_limit Denied ---');
+  try {
+    const { data, error } = await supabase.rpc('check_rate_limit', {
+      p_key: 'direct_anon_attack',
+      p_max_requests: 10,
+      p_window_ms: 60000,
+    });
+    // With placeholder credentials or REVOKE in Supabase, anonymous client MUST receive error
+    assert(Boolean(error), 'Direct anonymous Supabase RPC check_rate_limit is DENIED');
+  } catch (e) {
+    assert(false, `Test 22 failed: ${e.message}`);
+  }
+
+  // -----------------------------------------------------------------
+  // 23. DIRECT PUBLIC RPC create_order_atomic -> DENIED
+  // -----------------------------------------------------------------
+  console.log('\n--- Test 23: Direct Public RPC create_order_atomic Denied ---');
+  try {
+    const { data, error } = await supabase.rpc('create_order_atomic', {
+      p_order_number: 'DIRECT-ATTACK-001',
+      p_customer_name: 'Attacker',
+      p_customer_phone: '+380500000000',
+      p_customer_email: 'attacker@example.com',
+      p_delivery_address: 'nowhere',
+      p_delivery_method: 'pickup',
+      p_payment_method: 'cash',
+      p_notes: 'direct rpc attack',
+      p_items: [{ id: 'p1', quantity: 1 }],
+    });
+    assert(Boolean(error), 'Direct anonymous Supabase RPC create_order_atomic is DENIED');
+  } catch (e) {
+    assert(false, `Test 23 failed: ${e.message}`);
+  }
+
+  // -----------------------------------------------------------------
+  // 24. DIRECT PUBLIC ORDERS & ORDER_ITEMS INSERT -> DENIED
+  // -----------------------------------------------------------------
+  console.log('\n--- Test 24: Direct Public Orders & Order Items INSERT Denied ---');
+  try {
+    const { error: orderErr } = await supabase.from('orders').insert([
+      {
+        order_number: 'DIRECT-REST-ATTACK',
+        customer_name: 'Attacker',
+        customer_phone: '+380500000000',
+        total_amount: 0.01,
+      },
+    ]);
+    assert(Boolean(orderErr), 'Direct anonymous Supabase REST INSERT into orders is DENIED');
+
+    const { error: itemErr } = await supabase.from('order_items').insert([
+      {
+        product_name: 'Free Stolen Item',
+        quantity: 1,
+        price: 0.00,
+        total: 0.00,
+      },
+    ]);
+    assert(Boolean(itemErr), 'Direct anonymous Supabase REST INSERT into order_items is DENIED');
+  } catch (e) {
+    assert(false, `Test 24 failed: ${e.message}`);
+  }
+
+  // -----------------------------------------------------------------
+  // 25. SECURITY DEFINER SEARCH_PATH & PERMISSION SPECIFICATION
+  // -----------------------------------------------------------------
+  console.log('\n--- Test 25: SQL Schema Search Path & Permission Hardening ---');
+  try {
+    const schemaPath = path.resolve(process.cwd(), 'supabase', 'schema.sql');
+    const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+
+    const hasEmptySearchPath = schemaSql.includes("SET search_path = ''");
+    const hasRevokeRateLimit = schemaSql.includes('REVOKE ALL ON FUNCTION public.check_rate_limit');
+    const hasGrantRateLimit = schemaSql.includes('GRANT EXECUTE ON FUNCTION public.check_rate_limit');
+    const hasRevokeCreateOrder = schemaSql.includes('REVOKE ALL ON FUNCTION public.create_order_atomic');
+    const hasGrantCreateOrder = schemaSql.includes('GRANT EXECUTE ON FUNCTION public.create_order_atomic');
+
+    assert(hasEmptySearchPath, 'All SECURITY DEFINER functions use explicit immutable SET search_path = \'\'');
+    assert(hasRevokeRateLimit && hasGrantRateLimit, 'public.check_rate_limit revokes from PUBLIC/anon and grants only to service_role');
+    assert(hasRevokeCreateOrder && hasGrantCreateOrder, 'public.create_order_atomic revokes from PUBLIC/anon and grants only to service_role');
+  } catch (e) {
+    assert(false, `Test 25 failed: ${e.message}`);
+  }
+
 
   // -----------------------------------------------------------------
   // SUMMARY

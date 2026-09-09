@@ -7,17 +7,12 @@ const BUNDLE_FILE = path.join(process.cwd(), 'src', 'data', 'products.json');
 const WRITABLE_FILE = path.join(os.tmpdir(), 'creasphere_products.json');
 
 function initProducts() {
-  if (globalThis.__creasphere_products && Array.isArray(globalThis.__creasphere_products)) {
-    return globalThis.__creasphere_products;
-  }
-
-  // 1. Try reading from writable /tmp in serverless
+  // 1. Try reading from writable /tmp in serverless/dev
   try {
     if (fs.existsSync(WRITABLE_FILE)) {
       const content = fs.readFileSync(WRITABLE_FILE, 'utf-8');
       const parsed = JSON.parse(content);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        globalThis.__creasphere_products = parsed;
         return parsed;
       }
     }
@@ -29,7 +24,6 @@ function initProducts() {
       const content = fs.readFileSync(BUNDLE_FILE, 'utf-8');
       const parsed = JSON.parse(content);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        globalThis.__creasphere_products = parsed;
         try {
           fs.writeFileSync(WRITABLE_FILE, JSON.stringify(parsed, null, 2), 'utf-8');
         } catch (e) {}
@@ -39,8 +33,7 @@ function initProducts() {
   } catch (e) {}
 
   // 3. Fallback to demo data
-  globalThis.__creasphere_products = [...DEMO_PRODUCTS];
-  return globalThis.__creasphere_products;
+  return [...DEMO_PRODUCTS];
 }
 
 export function getProducts() {
@@ -50,7 +43,6 @@ export function getProducts() {
 export function addProduct(product) {
   const current = getProducts();
   const updated = [product, ...current.filter((p) => p.id !== product.id && p.sku !== product.sku)];
-  globalThis.__creasphere_products = updated;
 
   try {
     fs.writeFileSync(WRITABLE_FILE, JSON.stringify(updated, null, 2), 'utf-8');
@@ -75,7 +67,6 @@ export function updateProduct(id, updatedData) {
     }
     return p;
   });
-  globalThis.__creasphere_products = updated;
 
   try {
     fs.writeFileSync(WRITABLE_FILE, JSON.stringify(updated, null, 2), 'utf-8');
@@ -91,7 +82,6 @@ export function updateProduct(id, updatedData) {
 export function deleteProduct(id) {
   const current = getProducts();
   const updated = current.filter((p) => p.id !== id && p.sku !== id);
-  globalThis.__creasphere_products = updated;
 
   try {
     fs.writeFileSync(WRITABLE_FILE, JSON.stringify(updated, null, 2), 'utf-8');
@@ -133,8 +123,6 @@ export function decrementStockAtomic(items) {
       }
     }
   }
-
-  globalThis.__creasphere_products = products;
 
   try {
     fs.writeFileSync(WRITABLE_FILE, JSON.stringify(products, null, 2), 'utf-8');

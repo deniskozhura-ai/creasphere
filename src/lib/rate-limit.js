@@ -17,9 +17,10 @@ const isUpstashConfigured = Boolean(
 );
 
 /**
- * Reads dev persistent rate limit records
+ * Reads dev persistent rate limit records (Strictly restricted to non-production!)
  */
 function readDevRateLimits() {
+  if (process.env.NODE_ENV === 'production') return {};
   try {
     if (fs.existsSync(DEV_RATE_LIMIT_STORE)) {
       const data = JSON.parse(fs.readFileSync(DEV_RATE_LIMIT_STORE, 'utf-8'));
@@ -30,6 +31,7 @@ function readDevRateLimits() {
 }
 
 function writeDevRateLimits(records) {
+  if (process.env.NODE_ENV === 'production') return;
   try {
     fs.writeFileSync(DEV_RATE_LIMIT_STORE, JSON.stringify(records, null, 2), 'utf-8');
   } catch (e) {}
@@ -98,6 +100,7 @@ async function rateLimitUpstash(identifier, limit, windowMs) {
       remaining: 0,
       retryAfter,
       totalLimit: limit,
+      serviceUnavailable: false,
     };
   }
 
@@ -106,11 +109,12 @@ async function rateLimitUpstash(identifier, limit, windowMs) {
     remaining: Math.max(0, limit - currentCount),
     retryAfter: 0,
     totalLimit: limit,
+    serviceUnavailable: false,
   };
 }
 
 /**
- * Supabase/PostgreSQL-backed shared rate limiter
+ * Supabase/PostgreSQL-backed shared rate limiter via atomic RPC check_rate_limit
  */
 async function rateLimitSupabase(identifier, limit, windowMs) {
   const supabase = getServiceSupabase();
@@ -129,13 +133,24 @@ async function rateLimitSupabase(identifier, limit, windowMs) {
     remaining: data.remaining,
     retryAfter: data.retryAfter || 0,
     totalLimit: limit,
+    serviceUnavailable: false,
   };
 }
 
 /**
- * Local dev/test persistent rate limiter
+ * Local dev/test persistent rate limiter (non-production only)
  */
 function rateLimitDev(identifier, limit, windowMs) {
+  if (process.env.NODE_ENV === 'production') {
+    return {
+      allowed: false,
+      remaining: 0,
+      retryAfter: 60,
+      totalLimit: limit,
+      serviceUnavailable: true,
+    };
+  }
+
   const now = Date.now();
   const records = readDevRateLimits();
 
@@ -151,6 +166,7 @@ function rateLimitDev(identifier, limit, windowMs) {
       remaining: limit - 1,
       retryAfter: 0,
       totalLimit: limit,
+      serviceUnavailable: false,
     };
   }
 
@@ -161,6 +177,7 @@ function rateLimitDev(identifier, limit, windowMs) {
       remaining: 0,
       retryAfter,
       totalLimit: limit,
+      serviceUnavailable: false,
     };
   }
 
@@ -173,6 +190,7 @@ function rateLimitDev(identifier, limit, windowMs) {
     remaining: limit - record.count,
     retryAfter: 0,
     totalLimit: limit,
+    serviceUnavailable: false,
   };
 }
 
@@ -181,7 +199,7 @@ function rateLimitDev(identifier, limit, windowMs) {
  * @param {string} identifier - unique key e.g. "orders:192.168.1.1"
  * @param {number} limit - maximum requests allowed in window
  * @param {number} windowMs - window size in milliseconds
- * @returns {Promise<{ allowed: boolean, remaining: number, retryAfter: number, totalLimit: number }>}
+ * @returns {Promise<{ allowed: boolean, remaining: number, retryAfter: number, totalLimit: number, serviceUnavailable?: boolean }>}
  */
 export async function rateLimit(identifier, limit = 10, windowMs = 60 * 1000) {
   // 1. Try Upstash Redis if configured (Ultra-fast serverless KV)
@@ -189,7 +207,7 @@ export async function rateLimit(identifier, limit = 10, windowMs = 60 * 1000) {
     try {
       return await rateLimitUpstash(identifier, limit, windowMs);
     } catch (err) {
-      console.error('[RATE-LIMIT] Upstash error, falling back to database:', err.message);
+      console.error('[RATE-LIMIT] Upstash error:', err.message);
     }
   }
 
@@ -202,22 +220,44 @@ export async function rateLimit(identifier, limit = 10, windowMs = 60 * 1000) {
     }
   }
 
-  // 3. Fallback for offline local dev and test environment
-  if (process.env.NODE_ENV === 'production' && !isUpstashConfigured && !isSupabaseAdminConfigured) {
-    console.error('[CRITICAL SECURITY WARNING] Shared rate limiting store (Upstash/Supabase) is not configured in production!');
+  // 3. FAIL CLOSED in production: NEVER silently fall back to ephemeral memory or disk!
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[CRITICAL SECURITY ERROR] Shared rate limiting store (Upstash/Supabase) is unavailable in production. Failing closed.');
+    return {
+      allowed: false,
+      remaining: 0,
+      retryAfter: 60,
+      totalLimit: limit,
+      serviceUnavailable: true,
+    };
   }
 
+  // 4. Development & testing fallback
   return rateLimitDev(identifier, limit, windowMs);
 }
 
 /**
  * Convenience helper to enforce rate limits on API route requests
- * Returns NextResponse (429) if rate limited, or null if allowed
+ * Returns NextResponse (429 or 503) if rate limited/unavailable, or null if allowed
  */
 export async function applyRateLimit(request, action = 'default', maxRequests = 10, windowMs = 60 * 1000) {
   const ip = getClientIp(request);
   const identifier = `${action}:${ip}`;
   const result = await rateLimit(identifier, maxRequests, windowMs);
+
+  if (result.serviceUnavailable) {
+    return NextResponse.json(
+      {
+        error: 'Сервіс тимчасово недоступний (перевірка лімітів). Спробуйте пізніше.',
+      },
+      {
+        status: 503,
+        headers: {
+          'Retry-After': String(result.retryAfter || 60),
+        },
+      }
+    );
+  }
 
   if (!result.allowed) {
     return NextResponse.json(

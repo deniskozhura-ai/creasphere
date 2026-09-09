@@ -9,7 +9,7 @@ import { getServiceSupabase, isSupabaseAdminConfigured } from './supabase-admin'
 export const AUTH_COOKIE_NAME = 'creasphere_admin_auth';
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-// Local persistent store path used ONLY for offline development and local test execution
+// Local persistent store path used strictly in development/test environment
 const DEV_SESSION_STORE = path.join(os.tmpdir(), 'creasphere_admin_sessions.json');
 
 /**
@@ -23,8 +23,10 @@ export function hashSessionToken(token) {
 
 /**
  * Helper for dev/test fallback persistent session storage
+ * STRICTLY restricted to development / test environments!
  */
 function readDevSessions() {
+  if (process.env.NODE_ENV === 'production') return [];
   try {
     if (fs.existsSync(DEV_SESSION_STORE)) {
       const data = JSON.parse(fs.readFileSync(DEV_SESSION_STORE, 'utf-8'));
@@ -37,6 +39,7 @@ function readDevSessions() {
 }
 
 function writeDevSessions(sessions) {
+  if (process.env.NODE_ENV === 'production') return;
   try {
     fs.writeFileSync(DEV_SESSION_STORE, JSON.stringify(sessions, null, 2), 'utf-8');
   } catch (e) {
@@ -71,6 +74,8 @@ export function verifyAdminPassword(inputPassword) {
  * Creates a cryptographically random session token,
  * hashes it with SHA-256, and stores the hash in the persistent database.
  * Returns the raw unhashed token to be placed in HttpOnly cookie.
+ *
+ * FAIL CLOSED in production: If database is unavailable, NEVER fall back to local disk/memory!
  */
 export async function createAdminSession() {
   const rawToken = crypto.randomBytes(32).toString('hex');
@@ -97,17 +102,17 @@ export async function createAdminSession() {
       return rawToken;
     } catch (err) {
       console.error('Session creation DB error:', err);
-      if (process.env.NODE_ENV === 'production') {
-        throw err;
-      }
+      throw err;
     }
   }
 
+  // Production requirement: FAIL CLOSED. Do NOT fall back to local file or memory.
   if (process.env.NODE_ENV === 'production') {
-    console.error('[CRITICAL SECURITY WARNING] Production environment detected without persistent Supabase session store!');
+    console.error('[CRITICAL SECURITY ERROR] Production session store is unavailable. Denying session creation.');
+    throw new Error('Persistent session store unavailable in production');
   }
 
-  // Development/test persistent fallback
+  // Development/test persistent fallback (only in non-production)
   const sessions = readDevSessions().filter((s) => new Date(s.expires_at) > now);
   sessions.push({
     token_hash: tokenHash,
@@ -123,6 +128,8 @@ export async function createAdminSession() {
 /**
  * Validates if a raw session token is valid and unrevoked in the database.
  * Hashes incoming token with SHA-256 before lookup.
+ *
+ * FAIL CLOSED in production: If database is unavailable, return false.
  */
 export async function isValidAdminSession(rawToken) {
   if (!rawToken || typeof rawToken !== 'string') return false;
@@ -155,6 +162,12 @@ export async function isValidAdminSession(rawToken) {
     }
   }
 
+  // Production requirement: FAIL CLOSED.
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[CRITICAL SECURITY ERROR] Production session store is unavailable. Denying validation.');
+    return false;
+  }
+
   // Development/test persistent fallback
   const sessions = readDevSessions();
   const session = sessions.find((s) => s.token_hash === tokenHash);
@@ -168,6 +181,8 @@ export async function isValidAdminSession(rawToken) {
 
 /**
  * Revokes an admin session in the persistent database.
+ *
+ * FAIL CLOSED in production: If database is unavailable, throw error.
  */
 export async function revokeAdminSession(rawToken) {
   if (!rawToken || typeof rawToken !== 'string') return false;
@@ -192,6 +207,12 @@ export async function revokeAdminSession(rawToken) {
       console.error('Session revocation exception:', err);
       return false;
     }
+  }
+
+  // Production requirement: FAIL CLOSED.
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[CRITICAL SECURITY ERROR] Production session store is unavailable for revocation.');
+    throw new Error('Persistent session store unavailable in production');
   }
 
   // Development/test persistent fallback
@@ -245,9 +266,16 @@ export async function getSessionTokenFromRequest(request) {
 
 /**
  * Server-side guard for protected Admin API routes
- * Returns null if authorized, or NextResponse (401 / 403) if invalid
+ * Returns null if authorized, or NextResponse (401 / 403 / 503) if invalid or unavailable
  */
 export async function requireAdmin(request) {
+  if (process.env.NODE_ENV === 'production' && !isSupabaseAdminConfigured) {
+    return NextResponse.json(
+      { error: 'Сервіс авторизації тимчасово недоступний (конфігурація сховища)' },
+      { status: 503 }
+    );
+  }
+
   const token = await getSessionTokenFromRequest(request);
 
   if (!token || !(await isValidAdminSession(token))) {

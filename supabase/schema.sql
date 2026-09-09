@@ -207,7 +207,8 @@ DROP POLICY IF EXISTS "Public can insert custom orders" ON custom_orders;
 -- ===================================================
 
 -- 1. Atomic Rate Limiter Function
-CREATE OR REPLACE FUNCTION check_rate_limit(
+-- Hardened with empty search_path and fully qualified object names
+CREATE OR REPLACE FUNCTION public.check_rate_limit(
   p_key VARCHAR(255),
   p_max_requests INTEGER,
   p_window_ms BIGINT
@@ -215,43 +216,50 @@ CREATE OR REPLACE FUNCTION check_rate_limit(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = ''
 AS $$
 DECLARE
-  v_now BIGINT := (extract(epoch from now()) * 1000)::BIGINT;
+  v_now BIGINT := (pg_catalog.extract(epoch from pg_catalog.now()) * 1000)::BIGINT;
   v_record RECORD;
 BEGIN
   SELECT count, reset_at INTO v_record
-  FROM rate_limits
+  FROM public.rate_limits
   WHERE key = p_key
   FOR UPDATE;
 
   IF NOT FOUND OR v_record.reset_at < v_now THEN
-    INSERT INTO rate_limits (key, count, reset_at)
+    INSERT INTO public.rate_limits (key, count, reset_at)
     VALUES (p_key, 1, v_now + p_window_ms)
     ON CONFLICT (key) DO UPDATE
     SET count = 1, reset_at = v_now + p_window_ms;
 
-    RETURN jsonb_build_object('allowed', true, 'remaining', p_max_requests - 1, 'retryAfter', 0);
+    RETURN pg_catalog.jsonb_build_object('allowed', true, 'remaining', p_max_requests - 1, 'retryAfter', 0);
   END IF;
 
   IF v_record.count >= p_max_requests THEN
-    RETURN jsonb_build_object('allowed', false, 'remaining', 0, 'retryAfter', CEIL((v_record.reset_at - v_now) / 1000.0)::INTEGER);
+    RETURN pg_catalog.jsonb_build_object('allowed', false, 'remaining', 0, 'retryAfter', pg_catalog.ceil((v_record.reset_at - v_now) / 1000.0)::INTEGER);
   END IF;
 
-  UPDATE rate_limits
+  UPDATE public.rate_limits
   SET count = count + 1
   WHERE key = p_key;
 
-  RETURN jsonb_build_object('allowed', true, 'remaining', p_max_requests - (v_record.count + 1), 'retryAfter', 0);
+  RETURN pg_catalog.jsonb_build_object('allowed', true, 'remaining', p_max_requests - (v_record.count + 1), 'retryAfter', 0);
 END;
 $$;
 
+-- REVOKE direct execution from PUBLIC, anon, and authenticated roles!
+-- Only service_role can execute rate limiting check
+REVOKE ALL ON FUNCTION public.check_rate_limit(VARCHAR, INTEGER, BIGINT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.check_rate_limit(VARCHAR, INTEGER, BIGINT) TO service_role;
+
 -- 2. Atomic Order Creation Function with Stock Row-Locking (FOR UPDATE)
+-- Hardened with empty search_path and fully qualified object names
 -- Solves:
 -- - Price manipulation (reads real catalog price)
 -- - Race condition in stock (FOR UPDATE locks row and decrements atomically)
 -- - Partial failure (transaction rolls back all changes if any item fails)
-CREATE OR REPLACE FUNCTION create_order_atomic(
+CREATE OR REPLACE FUNCTION public.create_order_atomic(
   p_order_number VARCHAR(100),
   p_customer_name VARCHAR(255),
   p_customer_phone VARCHAR(50),
@@ -265,6 +273,7 @@ CREATE OR REPLACE FUNCTION create_order_atomic(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = ''
 AS $$
 DECLARE
   v_order_id UUID;
@@ -279,17 +288,17 @@ DECLARE
   v_calc_total DECIMAL(10, 2) := 0.00;
 BEGIN
   -- Validate uniqueness of order_number
-  IF EXISTS (SELECT 1 FROM orders WHERE order_number = p_order_number) THEN
+  IF EXISTS (SELECT 1 FROM public.orders WHERE order_number = p_order_number) THEN
     RAISE EXCEPTION 'ORDER_NUMBER_COLLISION: %', p_order_number;
   END IF;
 
   -- Validate non-empty items
-  IF p_items IS NULL OR jsonb_array_length(p_items) = 0 THEN
+  IF p_items IS NULL OR pg_catalog.jsonb_array_length(p_items) = 0 THEN
     RAISE EXCEPTION 'EMPTY_ORDER_ITEMS';
   END IF;
 
   -- Pre-insert order container
-  INSERT INTO orders (
+  INSERT INTO public.orders (
     order_number,
     customer_name,
     customer_phone,
@@ -314,7 +323,7 @@ BEGIN
   ) RETURNING id INTO v_order_id;
 
   -- Process and lock each product row
-  FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
+  FOR v_item IN SELECT * FROM pg_catalog.jsonb_array_elements(p_items)
   LOOP
     v_product_id := (v_item->>'id')::UUID;
     v_requested_qty := (v_item->>'quantity')::INTEGER;
@@ -326,7 +335,7 @@ BEGIN
     -- Row-level lock FOR UPDATE prevents race conditions across concurrent checkouts
     SELECT name, price, stock, status
     INTO v_product_name, v_product_price, v_current_stock, v_product_status
-    FROM products
+    FROM public.products
     WHERE id = v_product_id
     FOR UPDATE;
 
@@ -341,18 +350,18 @@ BEGIN
 
     -- Decrement stock atomically if not pre_order
     IF v_product_status <> 'pre_order' THEN
-      UPDATE products
+      UPDATE public.products
       SET stock = stock - v_requested_qty,
-          updated_at = NOW()
+          updated_at = pg_catalog.now()
       WHERE id = v_product_id;
     END IF;
 
     -- Authoritative server pricing
-    v_item_total := ROUND((v_product_price * v_requested_qty)::numeric, 2);
+    v_item_total := pg_catalog.round((v_product_price * v_requested_qty)::numeric, 2);
     v_calc_total := v_calc_total + v_item_total;
 
     -- Insert order item
-    INSERT INTO order_items (
+    INSERT INTO public.order_items (
       order_id,
       product_id,
       product_name,
@@ -370,12 +379,12 @@ BEGIN
   END LOOP;
 
   -- Set final server-calculated total
-  UPDATE orders
+  UPDATE public.orders
   SET total_amount = v_calc_total
   WHERE id = v_order_id;
 
   -- Return minimal non-PII confirmation
-  RETURN jsonb_build_object(
+  RETURN pg_catalog.jsonb_build_object(
     'success', true,
     'order_id', v_order_id,
     'order_number', p_order_number,
@@ -383,3 +392,8 @@ BEGIN
   );
 END;
 $$;
+
+-- REVOKE direct execution from PUBLIC, anon, and authenticated roles!
+-- Only service_role can execute atomic order creation
+REVOKE ALL ON FUNCTION public.create_order_atomic(VARCHAR, VARCHAR, VARCHAR, VARCHAR, TEXT, VARCHAR, VARCHAR, TEXT, JSONB) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.create_order_atomic(VARCHAR, VARCHAR, VARCHAR, VARCHAR, TEXT, VARCHAR, VARCHAR, TEXT, JSONB) TO service_role;
