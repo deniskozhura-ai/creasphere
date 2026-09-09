@@ -30,6 +30,13 @@ export async function GET(request) {
       return NextResponse.json(dbOrders || []);
     }
 
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json(
+        { error: 'Служба замовлень тимчасово недоступна в production' },
+        { status: 503 }
+      );
+    }
+
     // Fallback to local store in unconfigured/offline dev
     const orders = getOrders();
     return NextResponse.json(orders);
@@ -109,6 +116,14 @@ export async function POST(request) {
           { status: 503 }
         );
       }
+    }
+
+    // Fail closed in production if persistent database is unavailable
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json(
+        { error: 'Служба збереження замовлень тимчасово недоступна в production' },
+        { status: 503 }
+      );
     }
 
     // 5. Local Dev / Offline Fallback with Atomic Stock Verification

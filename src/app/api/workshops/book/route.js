@@ -28,6 +28,13 @@ export async function GET(request) {
       return NextResponse.json(dbBookings || []);
     }
 
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json(
+        { error: 'Служба записів на майстер-класи тимчасово недоступна в production' },
+        { status: 503 }
+      );
+    }
+
     const bookings = getDemoBookings();
     return NextResponse.json(bookings);
   } catch (err) {
@@ -107,6 +114,12 @@ export async function POST(request) {
         );
       }
     } else {
+      if (process.env.NODE_ENV === 'production') {
+        return NextResponse.json(
+          { error: 'Служба збереження записів тимчасово недоступна в production' },
+          { status: 503 }
+        );
+      }
       addDemoBooking(newBooking);
     }
 

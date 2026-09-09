@@ -86,17 +86,15 @@ async function runAllSecurityTests() {
 
   let adminCookie = '';
 
-  // Ensure fresh catalog stock in temp store for test isolation
+  // Ensure fresh catalog stock in seed store for test isolation
   try {
     const productsPath = path.resolve(process.cwd(), 'src', 'data', 'products.json');
-    const tmpProductsPath = path.join(os.tmpdir(), 'creasphere_products.json');
     if (fs.existsSync(productsPath)) {
       const initialProducts = JSON.parse(fs.readFileSync(productsPath, 'utf8'));
       for (const p of initialProducts) {
         p.stock = 100;
         p.status = 'in_stock';
       }
-      fs.writeFileSync(tmpProductsPath, JSON.stringify(initialProducts, null, 2), 'utf8');
       fs.writeFileSync(productsPath, JSON.stringify(initialProducts, null, 2), 'utf8');
     }
   } catch (e) {}
@@ -752,6 +750,107 @@ async function runAllSecurityTests() {
     assert(hasRevokeCreateOrder && hasGrantCreateOrder, 'public.create_order_atomic revokes from PUBLIC/anon and grants only to service_role');
   } catch (e) {
     assert(false, `Test 25 failed: ${e.message}`);
+  }
+
+  // -----------------------------------------------------------------
+  // 26. SPOOFED X-FORWARDED-FOR PROTECTION & NETLIFY TRUSTED HEADERS
+  // -----------------------------------------------------------------
+  console.log('\n--- Test 26: Spoofed X-Forwarded-For Protection ---');
+  try {
+    // 1. Functional test: Send changing X-Forwarded-For with identical Netlify edge IP
+    const SPOOF_TEST_NETLIFY_IP = `198.51.100.${Math.floor(Math.random() * 200) + 1}`;
+    let gotRateLimited = false;
+
+    for (let i = 0; i < 7; i++) {
+      const spoofedXff = `203.0.113.${10 + i}`;
+      const res = await fetch(`${BASE_URL}/api/admin/auth`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-nf-client-connection-ip': SPOOF_TEST_NETLIFY_IP,
+          'x-forwarded-for': spoofedXff,
+        },
+        body: JSON.stringify({ password: `wrong_${i}` }),
+      });
+      if (res.status === 429) {
+        gotRateLimited = true;
+        break;
+      }
+    }
+    assert(gotRateLimited, 'Rate limiter enforces HTTP 429 when client rotates spoofed X-Forwarded-For (Netlify IP prioritized)');
+
+    // 2. Code audit verification for getClientIp
+    const rateLimitPath = path.resolve(process.cwd(), 'src', 'lib', 'rate-limit.js');
+    const rateLimitSrc = fs.readFileSync(rateLimitPath, 'utf8');
+    const hasNetlifyPriority = rateLimitSrc.includes("request.headers.get('x-nf-client-connection-ip')");
+    const hasUntrustedProdFallback = rateLimitSrc.includes("process.env.NODE_ENV === 'production'") &&
+      rateLimitSrc.includes("'untrusted_client_ip'");
+
+    assert(hasNetlifyPriority, 'getClientIp prioritizes Netlify Edge x-nf-client-connection-ip over X-Forwarded-For');
+    assert(hasUntrustedProdFallback, 'getClientIp in production avoids trusting user-supplied X-Forwarded-For without edge proxy');
+  } catch (e) {
+    assert(false, `Test 26 failed: ${e.message}`);
+  }
+
+  // -----------------------------------------------------------------
+  // 27. PRODUCTS STORE /tmp ELIMINATION & PRODUCTION FAIL-CLOSED
+  // -----------------------------------------------------------------
+  console.log('\n--- Test 27: Products Store /tmp Elimination & Fail-Closed ---');
+  try {
+    const productsStorePath = path.resolve(process.cwd(), 'src', 'lib', 'products-store.js');
+    const productsStoreSrc = fs.readFileSync(productsStorePath, 'utf8');
+
+    const noTmpDirImport = !productsStoreSrc.includes("import os from 'os'") && !productsStoreSrc.includes('os.tmpdir');
+    const noTmpFile = !productsStoreSrc.includes('creasphere_products.json');
+    const hasProdAddCheck = productsStoreSrc.includes("if (process.env.NODE_ENV === 'production')") &&
+      productsStoreSrc.includes('Local products store mutation is disabled in production');
+
+    assert(noTmpDirImport, 'products-store.js does NOT import os or os.tmpdir');
+    assert(noTmpFile, 'products-store.js does NOT use writable /tmp creasphere_products.json');
+    assert(hasProdAddCheck, 'products-store.js mutations throw in production (fail closed)');
+
+    const apiProductsPath = path.resolve(process.cwd(), 'src', 'app', 'api', 'products', 'route.js');
+    const apiProductsSrc = fs.readFileSync(apiProductsPath, 'utf8');
+    const hasProdGet503 = apiProductsSrc.includes("process.env.NODE_ENV === 'production' && !isSupabaseAdminConfigured") &&
+      apiProductsSrc.includes('status: 503');
+
+    assert(hasProdGet503, 'GET /api/products returns HTTP 503 in production if Supabase is unconfigured');
+  } catch (e) {
+    assert(false, `Test 27 failed: ${e.message}`);
+  }
+
+  // -----------------------------------------------------------------
+  // 28. PRODUCTION FAIL-CLOSED ACROSS ALL ROUTE HANDLERS & STORES
+  // -----------------------------------------------------------------
+  console.log('\n--- Test 28: Production Fail-Closed Across Route Handlers & Stores ---');
+  try {
+    const routesToCheck = [
+      { file: 'src/app/api/orders/route.js', name: 'orders' },
+      { file: 'src/app/api/workshops/book/route.js', name: 'workshops/book' },
+      { file: 'src/app/api/space-bookings/route.js', name: 'space-bookings' },
+      { file: 'src/app/api/custom-orders/route.js', name: 'custom-orders' },
+    ];
+
+    for (const { file, name } of routesToCheck) {
+      const src = fs.readFileSync(path.resolve(process.cwd(), file), 'utf8');
+      const hasProd503 = src.includes("process.env.NODE_ENV === 'production'") && src.includes('status: 503');
+      assert(hasProd503, `API route /api/${name} fails closed (HTTP 503) in production if database unavailable`);
+    }
+
+    const storesToCheck = [
+      { file: 'src/lib/orders-store.js', name: 'orders-store' },
+      { file: 'src/lib/bookings-store.js', name: 'bookings-store' },
+      { file: 'src/lib/space-bookings-store.js', name: 'space-bookings-store' },
+      { file: 'src/lib/custom-orders-store.js', name: 'custom-orders-store' },
+    ];
+
+    for (const { file, name } of storesToCheck) {
+      const src = fs.readFileSync(path.resolve(process.cwd(), file), 'utf8');
+      const hasThrow = src.includes("process.env.NODE_ENV === 'production'") && src.includes('throw new Error');
+      assert(hasThrow, `Store ${name} disallows local mutations in production`);
+    }
+  } catch (e) {
+    assert(false, `Test 28 failed: ${e.message}`);
   }
 
 

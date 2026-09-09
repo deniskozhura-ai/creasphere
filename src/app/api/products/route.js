@@ -6,6 +6,13 @@ import { validateProductPayload, sanitizeString } from '@/lib/validation';
 
 export async function GET() {
   try {
+    if (process.env.NODE_ENV === 'production' && !isSupabaseAdminConfigured) {
+      return NextResponse.json(
+        { error: 'Служба товарів тимчасово недоступна в production' },
+        { status: 503 }
+      );
+    }
+
     if (isSupabaseAdminConfigured) {
       const { data: dbProducts, error } = await supabaseAdmin
         .from('products')
@@ -16,7 +23,7 @@ export async function GET() {
         console.error('Supabase get products error:', error.message);
         return NextResponse.json(
           { error: 'Помилка отримання товарів' },
-          { status: 500 }
+          { status: 503 }
         );
       }
       return NextResponse.json(dbProducts || []);
@@ -106,6 +113,13 @@ export async function POST(request) {
       });
     }
 
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json(
+        { error: 'Служба збереження товарів тимчасово недоступна в production' },
+        { status: 503 }
+      );
+    }
+
     addProduct(newProduct);
 
     return NextResponse.json({
@@ -171,6 +185,13 @@ export async function PUT(request) {
       });
     }
 
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json(
+        { error: 'Служба оновлення товарів тимчасово недоступна в production' },
+        { status: 503 }
+      );
+    }
+
     const updated = updateProduct(id, sanitized);
 
     return NextResponse.json({
@@ -209,6 +230,13 @@ export async function DELETE(request) {
       }
 
       return NextResponse.json({ success: true });
+    }
+
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json(
+        { error: 'Служба видалення товарів тимчасово недоступна в production' },
+        { status: 503 }
+      );
     }
 
     const ok = deleteProduct(id);

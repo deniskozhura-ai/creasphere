@@ -72,6 +72,12 @@ export async function POST(request) {
     });
   } catch (err) {
     console.error('Admin authentication error:', err);
+    if (err.message && err.message.includes('unavailable in production')) {
+      return NextResponse.json(
+        { error: 'Служба авторизації тимчасово недоступна в production. Спробуйте пізніше.' },
+        { status: 503 }
+      );
+    }
     return NextResponse.json(
       { error: 'Помилка авторизації. Спробуйте пізніше.' },
       { status: 500 }

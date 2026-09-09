@@ -1,38 +1,24 @@
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
 import { DEMO_PRODUCTS } from './demo-data';
 
+// Static bundled catalog used strictly as read-only seed/fallback in development/testing.
+// In production, Supabase database is the sole authoritative source of truth.
 const BUNDLE_FILE = path.join(process.cwd(), 'src', 'data', 'products.json');
-const WRITABLE_FILE = path.join(os.tmpdir(), 'creasphere_products.json');
 
 function initProducts() {
-  // 1. Try reading from writable /tmp in serverless/dev
-  try {
-    if (fs.existsSync(WRITABLE_FILE)) {
-      const content = fs.readFileSync(WRITABLE_FILE, 'utf-8');
-      const parsed = JSON.parse(content);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
-    }
-  } catch (e) {}
-
-  // 2. Try reading bundled static file
+  // Try reading bundled static file (development/testing)
   try {
     if (fs.existsSync(BUNDLE_FILE)) {
       const content = fs.readFileSync(BUNDLE_FILE, 'utf-8');
       const parsed = JSON.parse(content);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        try {
-          fs.writeFileSync(WRITABLE_FILE, JSON.stringify(parsed, null, 2), 'utf-8');
-        } catch (e) {}
         return parsed;
       }
     }
   } catch (e) {}
 
-  // 3. Fallback to demo data
+  // Fallback to demo data
   return [...DEMO_PRODUCTS];
 }
 
@@ -41,14 +27,12 @@ export function getProducts() {
 }
 
 export function addProduct(product) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Local products store mutation is disabled in production. Use Supabase database.');
+  }
+
   const current = getProducts();
   const updated = [product, ...current.filter((p) => p.id !== product.id && p.sku !== product.sku)];
-
-  try {
-    fs.writeFileSync(WRITABLE_FILE, JSON.stringify(updated, null, 2), 'utf-8');
-  } catch (e) {
-    console.warn('Could not write to tmp products file:', e.message);
-  }
 
   try {
     const dir = path.dirname(BUNDLE_FILE);
@@ -60,6 +44,10 @@ export function addProduct(product) {
 }
 
 export function updateProduct(id, updatedData) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Local products store mutation is disabled in production. Use Supabase database.');
+  }
+
   const current = getProducts();
   const updated = current.map((p) => {
     if (p.id === id || p.sku === id) {
@@ -69,10 +57,6 @@ export function updateProduct(id, updatedData) {
   });
 
   try {
-    fs.writeFileSync(WRITABLE_FILE, JSON.stringify(updated, null, 2), 'utf-8');
-  } catch (e) {}
-
-  try {
     fs.writeFileSync(BUNDLE_FILE, JSON.stringify(updated, null, 2), 'utf-8');
   } catch (e) {}
 
@@ -80,12 +64,12 @@ export function updateProduct(id, updatedData) {
 }
 
 export function deleteProduct(id) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Local products store mutation is disabled in production. Use Supabase database.');
+  }
+
   const current = getProducts();
   const updated = current.filter((p) => p.id !== id && p.sku !== id);
-
-  try {
-    fs.writeFileSync(WRITABLE_FILE, JSON.stringify(updated, null, 2), 'utf-8');
-  } catch (e) {}
 
   try {
     fs.writeFileSync(BUNDLE_FILE, JSON.stringify(updated, null, 2), 'utf-8');
@@ -95,11 +79,14 @@ export function deleteProduct(id) {
 }
 
 /**
- * Atomic stock decrement for order processing.
- * Verifies all items have sufficient stock before decrementing.
- * Throws error if any item is out of stock or insufficient.
+ * Atomic stock decrement for order processing in local development / offline test runs.
+ * In production, atomic decrement is handled strictly by public.create_order_atomic in Supabase.
  */
 export function decrementStockAtomic(items) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Local products store stock decrement is disabled in production. Use create_order_atomic Supabase RPC.');
+  }
+
   const products = getProducts();
 
   // Phase 1: Verify all products and quantities
@@ -123,10 +110,6 @@ export function decrementStockAtomic(items) {
       }
     }
   }
-
-  try {
-    fs.writeFileSync(WRITABLE_FILE, JSON.stringify(products, null, 2), 'utf-8');
-  } catch (e) {}
 
   try {
     fs.writeFileSync(BUNDLE_FILE, JSON.stringify(products, null, 2), 'utf-8');

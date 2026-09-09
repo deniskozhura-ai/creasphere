@@ -28,6 +28,13 @@ export async function GET(request) {
       return NextResponse.json(dbOrders || []);
     }
 
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json(
+        { error: 'Служба індивідуальних замовлень тимчасово недоступна в production' },
+        { status: 503 }
+      );
+    }
+
     const orders = getCustomOrders();
     return NextResponse.json(orders);
   } catch (err) {
@@ -104,6 +111,12 @@ export async function POST(request) {
         );
       }
     } else {
+      if (process.env.NODE_ENV === 'production') {
+        return NextResponse.json(
+          { error: 'Служба збереження індивідуальних замовлень тимчасово недоступна в production' },
+          { status: 503 }
+        );
+      }
       addCustomOrder(newOrder);
     }
 

@@ -38,21 +38,56 @@ function writeDevRateLimits(records) {
 }
 
 /**
- * Extracts client IP address safely considering proxy chains
+ * Extracts client IP address safely considering proxy chains and edge providers.
+ *
+ * Security principles:
+ * 1. Platform-trusted headers: Netlify Edge guarantees that `x-nf-client-connection-ip`
+ *    cannot be spoofed by incoming client requests.
+ * 2. Cloudflare guarantees `cf-connecting-ip` is injected by Cloudflare edge.
+ * 3. Never blindly trust user-supplied `x-forwarded-for` in production!
+ *    If an attacker attempts to spoof X-Forwarded-For to evade rate limiting in production
+ *    without trusted edge headers, we fail closed by falling back to a fixed shared identifier
+ *    (`untrusted_client_ip`), grouping all spoofed requests into the same rate limit bucket.
+ * 4. In development/testing (NODE_ENV !== 'production'), allow loopback or x-forwarded-for
+ *    for test harness isolation.
  */
 export function getClientIp(request) {
   if (!request) return '127.0.0.1';
 
+  // 1. Netlify Edge trusted header (guaranteed and sanitized by Netlify CDN edge)
+  const netlifyIp = request.headers.get('x-nf-client-connection-ip');
+  if (netlifyIp && netlifyIp.trim()) {
+    return netlifyIp.trim();
+  }
+
+  // 2. Cloudflare trusted header
+  const cfConnectingIp = request.headers.get('cf-connecting-ip');
+  if (cfConnectingIp && cfConnectingIp.trim()) {
+    return cfConnectingIp.trim();
+  }
+
+  // 3. Native Next.js socket IP if provided
+  if (request.ip && typeof request.ip === 'string' && request.ip.trim()) {
+    return request.ip.trim();
+  }
+
+  // 4. In production: do NOT trust user-supplied X-Forwarded-For to prevent rate-limit evasion!
+  // If no trusted platform header was attached, all untrusted requests share a single bucket.
+  if (process.env.NODE_ENV === 'production') {
+    return 'untrusted_client_ip';
+  }
+
+  // 5. Development / local test runner fallback
   const xForwardedFor = request.headers.get('x-forwarded-for');
   if (xForwardedFor) {
-    return xForwardedFor.split(',')[0].trim();
+    const parts = xForwardedFor.split(',').map((p) => p.trim()).filter(Boolean);
+    if (parts.length > 0) {
+      return parts[0];
+    }
   }
 
   const xRealIp = request.headers.get('x-real-ip');
-  if (xRealIp) return xRealIp.trim();
-
-  const cfConnectingIp = request.headers.get('cf-connecting-ip');
-  if (cfConnectingIp) return cfConnectingIp.trim();
+  if (xRealIp && xRealIp.trim()) return xRealIp.trim();
 
   return '127.0.0.1';
 }

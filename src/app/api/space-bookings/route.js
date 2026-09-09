@@ -28,6 +28,13 @@ export async function GET(request) {
       return NextResponse.json(dbBookings || []);
     }
 
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json(
+        { error: 'Служба бронювання простору тимчасово недоступна в production' },
+        { status: 503 }
+      );
+    }
+
     const bookings = getSpaceBookings();
     return NextResponse.json(bookings);
   } catch (err) {
@@ -108,6 +115,12 @@ export async function POST(request) {
         );
       }
     } else {
+      if (process.env.NODE_ENV === 'production') {
+        return NextResponse.json(
+          { error: 'Служба бронювання простору тимчасово недоступна в production' },
+          { status: 503 }
+        );
+      }
       addSpaceBooking(newBooking);
     }
 

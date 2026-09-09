@@ -68,6 +68,9 @@ export function getSpaceBookings() {
 }
 
 export function addSpaceBooking(booking) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Local space bookings store mutation is disabled in production. Use Supabase database.');
+  }
   const list = getSpaceBookings();
   const updated = [booking, ...list];
   globalThis.__creasphere_space_bookings = updated;
@@ -86,6 +89,9 @@ export function addSpaceBooking(booking) {
 }
 
 export function updateSpaceBookingStatus(id, newStatus) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Local space bookings store mutation is disabled in production. Use Supabase database.');
+  }
   const list = getSpaceBookings();
   const updated = list.map((item) =>
     item.id === id || item.booking_number === id ? { ...item, status: newStatus } : item
@@ -106,6 +112,9 @@ export function updateSpaceBookingStatus(id, newStatus) {
 }
 
 export function deleteSpaceBooking(id) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Local space bookings store mutation is disabled in production. Use Supabase database.');
+  }
   const list = getSpaceBookings();
   const updated = list.filter((item) => item.id !== id && item.booking_number !== id);
   globalThis.__creasphere_space_bookings = updated;

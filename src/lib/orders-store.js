@@ -133,6 +133,9 @@ export function getOrders() {
 }
 
 export function addOrder(order) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Local orders store mutation is disabled in production. Use Supabase database.');
+  }
   const list = getOrders();
   const updated = [order, ...list];
   globalThis.__creasphere_orders = updated;
@@ -151,6 +154,9 @@ export function addOrder(order) {
 }
 
 export function updateOrderStatus(id, newStatus) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Local orders store mutation is disabled in production. Use Supabase database.');
+  }
   const list = getOrders();
   const updated = list.map((item) =>
     item.id === id || item.order_number === id ? { ...item, status: newStatus } : item
@@ -171,6 +177,9 @@ export function updateOrderStatus(id, newStatus) {
 }
 
 export function deleteOrder(id) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Local orders store mutation is disabled in production. Use Supabase database.');
+  }
   const list = getOrders();
   const updated = list.filter((item) => item.id !== id && item.order_number !== id);
   globalThis.__creasphere_orders = updated;
