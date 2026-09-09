@@ -89,6 +89,15 @@ export default function CheckoutPage() {
       const data = await res.json();
 
       if (res.ok) {
+        try {
+          const prevOrders = JSON.parse(localStorage.getItem('creasphere_customer_orders') || '[]');
+          if (data.order) {
+            localStorage.setItem(
+              'creasphere_customer_orders',
+              JSON.stringify([data.order, ...prevOrders.filter((o) => o.id !== data.order.id)])
+            );
+          }
+        } catch (e) {}
         clearCart();
         showToast('Замовлення оформлено!', 'success');
         router.push(`/order-success?order=${data.orderNumber}`);

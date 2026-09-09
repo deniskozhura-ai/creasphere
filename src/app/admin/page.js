@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { getProducts } from '@/lib/products-store';
+import { getOrders } from '@/lib/orders-store';
 import { getDemoBookings } from '@/lib/bookings-store';
 import { getCustomOrders } from '@/lib/custom-orders-store';
 import { getSpaceBookings } from '@/lib/space-bookings-store';
@@ -13,23 +14,20 @@ export const metadata = {
 
 export default async function AdminDashboardPage() {
   const allProducts = getProducts();
+  const allOrders = getOrders();
   const allBookings = getDemoBookings();
   const allCustomOrders = getCustomOrders();
   const allSpaceBookings = getSpaceBookings();
 
   let productsCount = allProducts.length;
-  let ordersCount = 3;
-  let totalRevenue = 3450;
+  let ordersCount = allOrders.length;
+  let totalRevenue = allOrders.reduce((sum, o) => sum + (parseFloat(o.total_amount) || 0), 0);
   let bookings = allBookings;
   let bookingsCount = allBookings.length;
   let customOrdersCount = allCustomOrders.length;
   let spaceBookingsCount = allSpaceBookings.length;
 
-  let recentOrders = [
-    { id: '1', order_number: 'CS-849201', customer_name: 'Олена Петренко', customer_phone: '+380 99 234 5678', total_amount: 1130, status: 'completed', created_at: '2026-09-08' },
-    { id: '2', order_number: 'CS-849195', customer_name: 'Михайло Сидоренко', customer_phone: '+380 67 345 6789', total_amount: 750, status: 'pending', created_at: '2026-09-08' },
-    { id: '3', order_number: 'CS-849180', customer_name: 'Анна Коваль', customer_phone: '+380 50 123 4567', total_amount: 1570, status: 'processing', created_at: '2026-09-07' },
-  ];
+  let recentOrders = allOrders.slice(0, 5);
 
   if (isSupabaseConfigured) {
     try {
