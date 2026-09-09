@@ -92,6 +92,7 @@ export async function POST(request) {
             customer_email: newBooking.customer_email,
             workshop_title: newBooking.workshop_title,
             participants_count: newBooking.participants_count,
+            participant_age: newBooking.participant_age,
             preferred_date: newBooking.preferred_date,
             preferred_time: newBooking.preferred_time,
             notes: newBooking.notes,

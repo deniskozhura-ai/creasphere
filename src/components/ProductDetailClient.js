@@ -15,16 +15,7 @@ export default function ProductDetailClient({ product: initialProduct, slug }) {
 
   useEffect(() => {
     setMounted(true);
-    if (!product && slug) {
-      try {
-        const localCustom = JSON.parse(localStorage.getItem('creasphere_custom_products') || '[]');
-        const found = localCustom.find((p) => p.slug === slug || p.id === slug);
-        if (found) {
-          setProduct(found);
-        }
-      } catch (e) {}
-    }
-  }, [product, slug]);
+  }, []);
 
   if (!product) {
     if (!mounted) {

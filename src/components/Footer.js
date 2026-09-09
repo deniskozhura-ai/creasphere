@@ -46,7 +46,7 @@ export default function Footer() {
           </div>
         </div>
         <div className="footer__bottom">
-          <span>© 2024 CreaSphere. Павлоград. Усі права захищені.</span>
+          <span>© {new Date().getFullYear()} CreaSphere. Павлоград. Усі права захищені.</span>
           <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
             <Link href="/admin" style={{ opacity: 0.55, fontSize: 13, textDecoration: 'none', color: 'inherit' }}>
               🔒 Панель адміністратора

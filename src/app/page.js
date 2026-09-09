@@ -155,26 +155,6 @@ export default function HomePage() {
             );
           });
 
-          // Image parallax
-          ['.workshops__img--1 img', '.workshops__img--2 img'].forEach(sel => {
-            const el = document.querySelector(sel);
-            if (!el) return;
-            gsap.to(el, {
-              scrollTrigger: { trigger: '.workshops', start: 'top bottom', end: 'bottom top', scrub: 1.2 },
-              yPercent: 15, ease: 'none',
-            });
-          });
-
-          // Counters
-          document.querySelectorAll('[data-count]').forEach(counter => {
-            const target = parseInt(counter.getAttribute('data-count'), 10);
-            gsap.to(counter, {
-              scrollTrigger: { trigger: counter, start: 'top 85%', toggleActions: 'play none none none' },
-              innerText: target, duration: 2, ease: 'power2.out', snap: { innerText: 1 },
-              onUpdate: function() { counter.textContent = Math.round(parseFloat(counter.textContent)); }
-            });
-          });
-
           // Magnetic buttons
           if (window.innerWidth > 768) {
             document.querySelectorAll('.magnetic').forEach(el => {
@@ -367,39 +347,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ═══════════════ WORKSHOPS ═══════════════ */}
-      <section className="workshops" id="workshops">
-        <div className="container">
-          <div className="section-label reveal-up">
-            <span className="section-label__line"></span>
-            <span className="section-label__text">Майстер-класи</span>
-            <span className="section-label__num">03</span>
-          </div>
-          <div className="workshops__layout">
-            <div className="workshops__text">
-              <h2 className="workshops__title reveal-up">Краса <em>власними</em> руками</h2>
-              <p className="workshops__desc reveal-up">Ми регулярно проводимо творчі майстер-класи для усіх рівнів — від дитячих свят до корпоративних тімбілдингів. Гончарство, свічки, мозаїка, інтер’єрний живопис.</p>
-              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 32 }} className="reveal-up">
-                <Link href="/workshops" className="btn btn--primary magnetic">
-                  <span>Всі майстер-класи →</span>
-                </Link>
-                <Link href="/workshops#book-section" className="btn btn--ghost magnetic">
-                  <span>Записатися онлайн</span>
-                </Link>
-              </div>
-            </div>
-            <div className="workshops__images">
-              <div className="workshops__img workshops__img--1 reveal-up">
-                <img src="/workshop_main.jpg" alt="Творчий майстер-клас" loading="lazy" />
-              </div>
-              <div className="workshops__img workshops__img--2 reveal-up">
-                <img src="/workshop2.jpg" alt="Дівчинка на майстер-класі" loading="lazy" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* ═══════════════ CONTACT ═══════════════ */}
       <section className="contact" id="contact">
         <div className="container">
@@ -408,7 +355,7 @@ export default function HomePage() {
               <div className="section-label section-label--light reveal-up">
                 <span className="section-label__line"></span>
                 <span className="section-label__text">Контакти</span>
-                <span className="section-label__num">04</span>
+                <span className="section-label__num">03</span>
               </div>
               <h2 className="contact__title reveal-up"><em>Зацікавлені?</em></h2>
               <p className="contact__desc reveal-up">Завітайте до нас або напишіть у зручну для вас соцмережу — ми допоможемо з вибором подарунку, запишемо на майстер-клас або організуємо ваш івент.</p>

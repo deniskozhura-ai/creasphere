@@ -19,19 +19,10 @@ export default function AdminDashboardClient({
   useEffect(() => {
     try {
       // 1. Orders
-      const localOrders = JSON.parse(localStorage.getItem('creasphere_customer_orders') || '[]');
       let mergedOrders = [...initialRecentOrders];
-      if (Array.isArray(localOrders) && localOrders.length > 0) {
-        const existingOrderIds = new Set(mergedOrders.map((o) => o.id || o.order_number));
-        const newOrders = localOrders.filter((o) => !existingOrderIds.has(o.id || o.order_number));
-        mergedOrders = [...newOrders, ...mergedOrders];
-      }
+      const extraProductsCount = 0;
 
-      // 2. Custom Products
-      const localProducts = JSON.parse(localStorage.getItem('creasphere_custom_products') || '[]');
-      const extraProductsCount = Array.isArray(localProducts) ? localProducts.length : 0;
-
-      // 3. Workshop Bookings
+      // 2. Workshop Bookings
       const localBookings = JSON.parse(localStorage.getItem('creasphere_workshop_bookings') || '[]');
       let mergedBookings = [...initialBookings];
       if (Array.isArray(localBookings) && localBookings.length > 0) {

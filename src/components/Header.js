@@ -37,9 +37,6 @@ export default function Header() {
     { href: '/workshops', label: 'Майстер-класи' },
     { href: '/rent', label: 'Оренда простору' },
     { href: '/about', label: 'Про нас' },
-    { href: '/#services', label: 'Послуги' },
-    { href: '/#gallery', label: 'Галерея' },
-    { href: '/#contact', label: 'Контакти' },
   ];
 
   return (

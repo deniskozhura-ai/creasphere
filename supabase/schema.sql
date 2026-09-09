@@ -75,12 +75,16 @@ CREATE TABLE IF NOT EXISTS workshop_bookings (
   customer_email VARCHAR(255),
   workshop_title VARCHAR(255) NOT NULL,
   participants_count INTEGER NOT NULL DEFAULT 1 CHECK (participants_count > 0),
+  participant_age VARCHAR(100),
   preferred_date VARCHAR(100),
   preferred_time VARCHAR(100),
   notes TEXT,
   status VARCHAR(50) DEFAULT 'new',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Ensure participant_age column exists if table was already created
+ALTER TABLE workshop_bookings ADD COLUMN IF NOT EXISTS participant_age VARCHAR(100);
 
 -- 7. Space Bookings Table
 CREATE TABLE IF NOT EXISTS space_bookings (
@@ -129,10 +133,32 @@ CREATE TABLE IF NOT EXISTS rate_limits (
   reset_at BIGINT NOT NULL
 );
 
+-- 11. Workshops Catalog & Schedule Table
+CREATE TABLE IF NOT EXISTS workshops (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  title VARCHAR(255) NOT NULL,
+  slug VARCHAR(255) UNIQUE,
+  description TEXT,
+  duration VARCHAR(100),
+  price VARCHAR(100),
+  difficulty VARCHAR(100),
+  difficulty_level VARCHAR(50) DEFAULT 'beginner',
+  max_participants INTEGER DEFAULT 10,
+  registered_count INTEGER DEFAULT 0,
+  available_spots INTEGER DEFAULT 10,
+  age VARCHAR(100),
+  image VARCHAR(255),
+  badge VARCHAR(100),
+  scheduled_dates TEXT[] DEFAULT ARRAY[]::TEXT[],
+  status VARCHAR(50) DEFAULT 'active',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Indexes for performance & rapid security lookups
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);
 CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
 CREATE INDEX IF NOT EXISTS idx_products_slug ON products(slug);
+CREATE INDEX IF NOT EXISTS idx_workshops_status ON workshops(status);
 CREATE INDEX IF NOT EXISTS idx_orders_number ON orders(order_number);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_workshop_bookings_status ON workshop_bookings(status);
@@ -147,6 +173,7 @@ CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires_at ON admin_sessions(expir
 
 ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE workshops ENABLE ROW LEVEL SECURITY;
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workshop_bookings ENABLE ROW LEVEL SECURITY;
@@ -163,6 +190,15 @@ ALTER TABLE rate_limits ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public categories are viewable by everyone" ON categories;
 CREATE POLICY "Public categories are viewable by everyone" ON categories
   FOR SELECT USING (true);
+
+-- ---------------------------------------------------
+-- TABLE: workshops
+-- SELECT: Public (active workshops only)
+-- INSERT, UPDATE, DELETE: Service role / Admin only
+-- ---------------------------------------------------
+DROP POLICY IF EXISTS "Public workshops are viewable by everyone" ON workshops;
+CREATE POLICY "Public workshops are viewable by everyone" ON workshops
+  FOR SELECT USING (status = 'active');
 
 -- ---------------------------------------------------
 -- TABLE: products

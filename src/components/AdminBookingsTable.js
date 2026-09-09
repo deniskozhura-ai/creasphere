@@ -218,6 +218,11 @@ export default function AdminBookingsTable({ initialBookings }) {
                   </td>
                   <td>
                     <span style={{ fontWeight: 500 }}>{b.participants_count} люд.</span>
+                    {b.participant_age && b.participant_age !== 'Не вказано' && (
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        Вік: {b.participant_age}
+                      </div>
+                    )}
                   </td>
                   <td>
                     <div style={{ fontSize: 13, fontWeight: 500 }}>{b.preferred_date || '—'}</div>

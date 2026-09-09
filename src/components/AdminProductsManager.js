@@ -61,19 +61,6 @@ export default function AdminProductsManager({ initialProducts }) {
 
   const fileInputRef = useRef(null);
 
-  useEffect(() => {
-    try {
-      const localCustom = JSON.parse(localStorage.getItem('creasphere_custom_products') || '[]');
-      if (Array.isArray(localCustom) && localCustom.length > 0) {
-        setProducts((prev) => {
-          const existingIds = new Set(prev.map((p) => p.id));
-          const toAdd = localCustom.filter((p) => !existingIds.has(p.id));
-          return [...toAdd, ...prev];
-        });
-      }
-    } catch (e) {}
-  }, []);
-
   const defaultForm = {
     name: '',
     sku: '',
@@ -262,14 +249,6 @@ export default function AdminProductsManager({ initialProducts }) {
           setProducts((prev) =>
             prev.map((p) => (p.id === editingProduct.id ? data.product : p))
           );
-          try {
-            const localCustom = JSON.parse(localStorage.getItem('creasphere_custom_products') || '[]');
-            const updatedLocal = localCustom.map((p) =>
-              p.id === editingProduct.id ? data.product : p
-            );
-            localStorage.setItem('creasphere_custom_products', JSON.stringify(updatedLocal));
-          } catch (err) {}
-
           setIsModalOpen(false);
           alert('Товар успішно оновлено!');
         } else {
@@ -285,18 +264,7 @@ export default function AdminProductsManager({ initialProducts }) {
 
         const data = await res.json();
         if (res.ok && data.product) {
-          setProducts((prev) => {
-            const updated = [data.product, ...prev];
-            try {
-              const localCustom = JSON.parse(localStorage.getItem('creasphere_custom_products') || '[]');
-              localStorage.setItem(
-                'creasphere_custom_products',
-                JSON.stringify([data.product, ...localCustom.filter((p) => p.id !== data.product.id)])
-              );
-            } catch (err) {}
-            return updated;
-          });
-
+          setProducts((prev) => [data.product, ...prev]);
           setIsModalOpen(false);
           setForm(defaultForm);
           alert('Новий товар успішно додано до каталогу!');
@@ -318,13 +286,6 @@ export default function AdminProductsManager({ initialProducts }) {
       const res = await fetch(`/api/products?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
         setProducts((prev) => prev.filter((p) => p.id !== id && p.sku !== id));
-        try {
-          const localCustom = JSON.parse(localStorage.getItem('creasphere_custom_products') || '[]');
-          localStorage.setItem(
-            'creasphere_custom_products',
-            JSON.stringify(localCustom.filter((p) => p.id !== id && p.sku !== id))
-          );
-        } catch (err) {}
       }
     } catch (err) {
       console.error(err);

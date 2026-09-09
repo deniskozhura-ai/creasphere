@@ -10,22 +10,6 @@ export default function AdminOrdersTable({ initialOrders = [] }) {
   const [updatingId, setUpdatingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
 
-  // Sync with client-side localStorage orders
-  useEffect(() => {
-    try {
-      const localOrders = JSON.parse(localStorage.getItem('creasphere_customer_orders') || '[]');
-      if (Array.isArray(localOrders) && localOrders.length > 0) {
-        setOrders((prev) => {
-          const existingIds = new Set(prev.map((o) => o.id || o.order_number));
-          const newToAdd = localOrders.filter((o) => !existingIds.has(o.id || o.order_number));
-          return [...newToAdd, ...prev];
-        });
-      }
-    } catch (e) {
-      console.warn('LocalStorage orders read error:', e);
-    }
-  }, []);
-
   const handleStatusChange = async (id, newStatus) => {
     setUpdatingId(id);
     try {
@@ -39,13 +23,6 @@ export default function AdminOrdersTable({ initialOrders = [] }) {
         setOrders((prev) =>
           prev.map((o) => (o.id === id || o.order_number === id ? { ...o, status: newStatus } : o))
         );
-        try {
-          const localOrders = JSON.parse(localStorage.getItem('creasphere_customer_orders') || '[]');
-          const updatedLocal = localOrders.map((o) =>
-            o.id === id || o.order_number === id ? { ...o, status: newStatus } : o
-          );
-          localStorage.setItem('creasphere_customer_orders', JSON.stringify(updatedLocal));
-        } catch (e) {}
       }
     } catch (err) {
       console.error('Status update failed:', err);
@@ -61,11 +38,6 @@ export default function AdminOrdersTable({ initialOrders = [] }) {
       const res = await fetch(`/api/orders?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
         setOrders((prev) => prev.filter((o) => o.id !== id && o.order_number !== id));
-        try {
-          const localOrders = JSON.parse(localStorage.getItem('creasphere_customer_orders') || '[]');
-          const updatedLocal = localOrders.filter((o) => o.id !== id && o.order_number !== id);
-          localStorage.setItem('creasphere_customer_orders', JSON.stringify(updatedLocal));
-        } catch (e) {}
       }
     } catch (err) {
       console.error('Delete order failed:', err);

@@ -5,35 +5,7 @@ import Link from 'next/link';
 import ProductCard from './ProductCard';
 
 export default function SearchProductGrid({ initialProducts = [], query = '' }) {
-  const [products, setProducts] = useState(initialProducts);
-
-  useEffect(() => {
-    try {
-      const localCustom = JSON.parse(localStorage.getItem('creasphere_custom_products') || '[]');
-      if (Array.isArray(localCustom) && localCustom.length > 0 && query) {
-        const qLower = query.toLowerCase();
-        const matches = localCustom.filter(
-          (p) =>
-            p.name?.toLowerCase().includes(qLower) ||
-            p.description?.toLowerCase().includes(qLower) ||
-            p.brand?.toLowerCase().includes(qLower) ||
-            p.category_name?.toLowerCase().includes(qLower) ||
-            p.material?.toLowerCase().includes(qLower)
-        );
-
-        const existingIds = new Set(initialProducts.map((p) => p.id));
-        const newToAdd = matches.filter((p) => !existingIds.has(p.id));
-
-        if (newToAdd.length > 0) {
-          setProducts([...newToAdd, ...initialProducts]);
-          return;
-        }
-      }
-      setProducts(initialProducts);
-    } catch (e) {
-      setProducts(initialProducts);
-    }
-  }, [initialProducts, query]);
+  const products = initialProducts;
 
   if (products.length === 0) {
     return (
