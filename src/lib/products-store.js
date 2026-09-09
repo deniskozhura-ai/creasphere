@@ -69,6 +69,27 @@ export function addProduct(product) {
   return product;
 }
 
+export function updateProduct(id, updatedData) {
+  const current = getProducts();
+  const updated = current.map((p) => {
+    if (p.id === id || p.sku === id) {
+      return { ...p, ...updatedData, id: p.id };
+    }
+    return p;
+  });
+  globalThis.__creasphere_products = updated;
+
+  try {
+    fs.writeFileSync(WRITABLE_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+  } catch (e) {}
+
+  try {
+    fs.writeFileSync(BUNDLE_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+  } catch (e) {}
+
+  return updated.find((p) => p.id === id || p.sku === id);
+}
+
 export function deleteProduct(id) {
   const current = getProducts();
   const updated = current.filter((p) => p.id !== id && p.sku !== id);
@@ -84,3 +105,4 @@ export function deleteProduct(id) {
 
   return true;
 }
+

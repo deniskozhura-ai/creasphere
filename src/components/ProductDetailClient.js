@@ -1,20 +1,56 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useCart } from './CartProvider';
 import { useToast } from './Toast';
 
-export default function ProductDetailClient({ product }) {
+export default function ProductDetailClient({ product: initialProduct, slug }) {
+  const [product, setProduct] = useState(initialProduct);
+  const [mounted, setMounted] = useState(false);
   const { addItem } = useCart();
   const { showToast } = useToast();
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
 
+  useEffect(() => {
+    setMounted(true);
+    if (!product && slug) {
+      try {
+        const localCustom = JSON.parse(localStorage.getItem('creasphere_custom_products') || '[]');
+        const found = localCustom.find((p) => p.slug === slug || p.id === slug);
+        if (found) {
+          setProduct(found);
+        }
+      } catch (e) {}
+    }
+  }, [product, slug]);
+
+  if (!product) {
+    if (!mounted) {
+      return (
+        <div style={{ padding: '40px 0', textAlign: 'center' }}>
+          <p>Завантаження інформації про товар...</p>
+        </div>
+      );
+    }
+    return (
+      <div className="cart-empty" style={{ padding: '60px 0' }}>
+        <div className="cart-empty__icon">🔍</div>
+        <h2 className="cart-empty__title">Товар не знайдено</h2>
+        <p className="cart-empty__text">Можливо, товар було видалено або посилання застаріло</p>
+        <Link href="/shop" className="btn btn--primary" style={{ marginTop: 20 }}>
+          <span>Повернутися до магазину</span>
+        </Link>
+      </div>
+    );
+  }
+
   const images = product.images && product.images.length > 0
     ? product.images
     : ['/hero_products.webp'];
 
-  const inStock = product.stock > 0;
+  const inStock = product.status !== 'out_of_stock' && (product.stock > 0 || product.status === 'pre_order');
 
   const handleAddToCart = () => {
     addItem(product, quantity);
@@ -49,8 +85,8 @@ export default function ProductDetailClient({ product }) {
 
       {/* Info */}
       <div className="product-info">
-        {product.categories?.name && (
-          <div className="product-info__category">{product.categories.name}</div>
+        {(product.category_name || product.categories?.name) && (
+          <div className="product-info__category">{product.category_name || product.categories?.name}</div>
         )}
         <h1 className="product-info__title">{product.name}</h1>
         {product.sku && <div className="product-info__sku">Артикул: {product.sku}</div>}
@@ -58,7 +94,11 @@ export default function ProductDetailClient({ product }) {
         <div className="product-info__price">{product.price} ₴</div>
 
         <div className={`product-info__stock ${inStock ? 'product-info__stock--in' : 'product-info__stock--out'}`}>
-          {inStock ? `● В наявності (${product.stock} шт.)` : '✕ Немає в наявності'}
+          {product.status === 'pre_order'
+            ? '⏳ Під замовлення'
+            : inStock
+            ? `● В наявності (${product.stock || 1} шт.)`
+            : '✕ Немає в наявності'}
         </div>
 
         <div className="product-info__divider" />
@@ -78,11 +118,11 @@ export default function ProductDetailClient({ product }) {
                 value={quantity}
                 onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
                 min="1"
-                max={product.stock}
+                max={product.stock || 99}
               />
               <button
                 type="button"
-                onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}
+                onClick={() => setQuantity(Math.min(product.stock || 99, quantity + 1))}
                 aria-label="Збільшити"
               >
                 +
@@ -130,6 +170,12 @@ export default function ProductDetailClient({ product }) {
                 <tr>
                   <td>Розміри</td>
                   <td>{product.dimensions}</td>
+                </tr>
+              )}
+              {product.production_time && (
+                <tr>
+                  <td>Термін виготовлення</td>
+                  <td>{product.production_time}</td>
                 </tr>
               )}
               {product.weight && (

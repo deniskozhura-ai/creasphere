@@ -5,8 +5,9 @@ import { useCart } from './CartProvider';
 
 export default function ProductCard({ product }) {
   const { addItem } = useCart();
-  const inStock = product.stock > 0;
-  const imageUrl = product.images?.[0] || null;
+  const inStock = product.status !== 'out_of_stock' && (product.stock > 0 || product.status === 'pre_order');
+  const imageUrl = product.images?.[0] || product.image || null;
+  const displayPrice = Number(product.price || 0).toFixed(2);
 
   return (
     <div className="product-card">
@@ -16,9 +17,11 @@ export default function ProductCard({ product }) {
         ) : (
           <div className="no-image">Немає фото</div>
         )}
-        {!inStock && (
+        {!inStock ? (
           <span className="product-card__badge product-card__badge--out">Немає в наявності</span>
-        )}
+        ) : product.status === 'pre_order' ? (
+          <span className="product-card__badge" style={{ background: '#d97706', color: '#fff' }}>Під замовлення</span>
+        ) : null}
       </Link>
       <div className="product-card__body">
         {product.category_name && (
@@ -31,7 +34,7 @@ export default function ProductCard({ product }) {
           <span className="product-card__sku">Артикул: {product.sku}</span>
         )}
         <div className="product-card__bottom">
-          <span className="product-card__price">{product.price.toFixed(2)} ₴</span>
+          <span className="product-card__price">{displayPrice} ₴</span>
           <button
             className="product-card__add-btn"
             onClick={(e) => {

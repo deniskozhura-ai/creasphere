@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getProducts, addProduct, deleteProduct } from '@/lib/products-store';
+import { getProducts, addProduct, updateProduct, deleteProduct } from '@/lib/products-store';
 
 export async function GET() {
   const products = getProducts();
@@ -22,6 +22,7 @@ export async function POST(request) {
       production_time,
       description,
       image,
+      images,
     } = body;
 
     if (!name?.trim() || !price) {
@@ -35,6 +36,18 @@ export async function POST(request) {
       .toLowerCase()
       .replace(/[^a-z0-9а-яіїєґ]+/g, '-')
       .replace(/^-+|-+$/g, '') || `product-${Date.now()}`;
+
+    // Normalize images array
+    let productImages = [];
+    if (Array.isArray(images) && images.length > 0) {
+      productImages = images.filter((img) => typeof img === 'string' && img.trim());
+    }
+    if (productImages.length === 0 && image?.trim()) {
+      productImages = [image.trim()];
+    }
+    if (productImages.length === 0) {
+      productImages = ['/gift_collection.webp'];
+    }
 
     const newProduct = {
       id: `prod-${Date.now()}`,
@@ -51,7 +64,7 @@ export async function POST(request) {
       dimensions: dimensions?.trim() || '',
       production_time: production_time?.trim() || 'В наявності',
       description: description?.trim() || 'Унікальний авторський виріб ручної роботи майстрів CreaSphere.',
-      images: [image?.trim() || '/gift_collection.webp'],
+      images: productImages,
     };
 
     addProduct(newProduct);
@@ -67,6 +80,41 @@ export async function POST(request) {
       { error: 'Помилка при збереженні товару' },
       { status: 500 }
     );
+  }
+}
+
+export async function PUT(request) {
+  try {
+    const body = await request.json();
+    const { id, ...dataToUpdate } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID товару обов’язковий' }, { status: 400 });
+    }
+
+    if (dataToUpdate.price !== undefined) {
+      dataToUpdate.price = parseFloat(dataToUpdate.price) || 0;
+    }
+    if (dataToUpdate.stock !== undefined) {
+      dataToUpdate.stock = parseInt(dataToUpdate.stock) || 0;
+    }
+    if (Array.isArray(dataToUpdate.images)) {
+      dataToUpdate.images = dataToUpdate.images.filter((img) => typeof img === 'string' && img.trim());
+      if (dataToUpdate.images.length === 0) {
+        dataToUpdate.images = ['/gift_collection.webp'];
+      }
+    }
+
+    const updated = updateProduct(id, dataToUpdate);
+
+    return NextResponse.json({
+      success: true,
+      product: updated,
+      message: 'Товар оновлено!',
+    });
+  } catch (err) {
+    console.error('Update product API error:', err);
+    return NextResponse.json({ error: 'Помилка оновлення' }, { status: 500 });
   }
 }
 
