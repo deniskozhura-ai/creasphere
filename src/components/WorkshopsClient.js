@@ -1,0 +1,239 @@
+'use client';
+
+import { useState } from 'react';
+import WorkshopBookingForm from './WorkshopBookingForm';
+
+export default function WorkshopsClient({ workshopTypes }) {
+  const [selectedWorkshop, setSelectedWorkshop] = useState('');
+
+  const handleSelectWorkshop = (title) => {
+    setSelectedWorkshop(title);
+    const formElement = document.getElementById('book-section');
+    if (formElement) {
+      formElement.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  return (
+    <>
+      {/* ── Workshop Types Grid ── */}
+      <section style={{ padding: '60px 0 80px' }}>
+        <div className="container">
+          <div style={{ textAlign: 'center', marginBottom: 50 }}>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(26px, 3.5vw, 36px)', marginBottom: 16 }}>
+              Напрямки майстер-класів
+            </h2>
+            <p style={{ color: 'var(--text-muted)', maxWidth: 540, margin: '0 auto', fontSize: 15 }}>
+              Оберіть напрямок до душі та запишіться на зручний час онлайн
+            </p>
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(330px, 1fr))',
+            gap: 32,
+          }}>
+            {workshopTypes.map((item, i) => (
+              <article
+                key={i}
+                style={{
+                  background: 'var(--bg-card)',
+                  borderRadius: 'var(--radius)',
+                  overflow: 'hidden',
+                  border: '1px solid var(--border)',
+                  boxShadow: 'var(--shadow-sm)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                <div style={{ position: 'relative', height: 220, overflow: 'hidden', background: 'var(--bg-warm)' }}>
+                  <img
+                    src={item.image}
+                    alt={item.title}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: 14,
+                      left: 14,
+                      background: 'rgba(255,255,255,0.92)',
+                      backdropFilter: 'blur(8px)',
+                      padding: '4px 12px',
+                      borderRadius: 100,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: 'var(--text)',
+                    }}
+                  >
+                    {item.badge}
+                  </span>
+
+                  {item.difficulty && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: 14,
+                        right: 14,
+                        background: 'rgba(0,0,0,0.7)',
+                        backdropFilter: 'blur(8px)',
+                        padding: '4px 10px',
+                        borderRadius: 100,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: '#fff',
+                      }}
+                    >
+                      {item.difficultyLevel === 'beginner' ? '🟢' : '🟡'} {item.difficulty}
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ padding: 24, display: 'flex', flexDirection: 'column', flex: 1 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 20, margin: 0 }}>
+                      {item.title}
+                    </h3>
+                    <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--sage, #606c38)', whiteSpace: 'nowrap', marginLeft: 8 }}>
+                      {item.price}
+                    </span>
+                  </div>
+
+                  <p style={{ color: 'var(--text-2)', fontSize: 14, lineHeight: 1.6, flex: 1, marginBottom: 18 }}>
+                    {item.desc}
+                  </p>
+
+                  <div style={{
+                    borderTop: '1px solid var(--border)',
+                    paddingTop: 14,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                    fontSize: 13,
+                    color: 'var(--text-muted)',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span>⏱</span> <span>{item.duration}</span>
+                      </div>
+                      {item.available_spots !== undefined && (
+                        <span style={{
+                          fontSize: 12,
+                          fontWeight: 600,
+                          padding: '2px 8px',
+                          borderRadius: 8,
+                          background: item.available_spots <= 2 ? '#fef2f2' : '#ecfdf5',
+                          color: item.available_spots <= 2 ? '#b91c1c' : '#047857',
+                        }}>
+                          Залишилось {item.available_spots} з {item.max_participants} місць
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>👤</span> <span>{item.age}</span>
+                    </div>
+
+                    {item.scheduled_dates && (
+                      <div style={{ marginTop: 4 }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>Найближчі дати:</span>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                          {item.scheduled_dates.map((d, idx) => (
+                            <span
+                              key={idx}
+                              style={{
+                                fontSize: 11,
+                                background: 'rgba(0,0,0,0.04)',
+                                padding: '2px 7px',
+                                borderRadius: 6,
+                                color: 'var(--text)',
+                              }}
+                            >
+                              {d}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSelectWorkshop(item.title)}
+                    className="btn btn--primary"
+                    style={{ width: '100%', marginTop: 20, textAlign: 'center', justifyContent: 'center' }}
+                  >
+                    <span>Записатися онлайн</span>
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Photo Showcase ── */}
+      <section style={{ padding: '60px 0 80px', background: 'var(--bg-warm)' }}>
+        <div className="container">
+          <div style={{ textAlign: 'center', marginBottom: 40 }}>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(24px, 3.5vw, 36px)', marginBottom: 12 }}>
+              Як проходять наші заняття
+            </h2>
+            <p style={{ color: 'var(--text-2)', fontSize: 15, maxWidth: 500, margin: '0 auto' }}>
+              Живі емоції, нові навички та атмосфера творчого натхнення
+            </p>
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+            gap: 20,
+          }}>
+            {[
+              { src: '/workshop_main.jpg', caption: 'Гончарне коло та ліплення' },
+              { src: '/workshop1.jpg', caption: 'Дитяча творча група' },
+              { src: '/workshop2.jpg', caption: 'Робота з мозаїкою та склом' },
+              { src: '/workshop3.jpg', caption: 'Святкова атмосфера занять' },
+            ].map((photo, i) => (
+              <div
+                key={i}
+                style={{
+                  borderRadius: 'var(--radius)',
+                  overflow: 'hidden',
+                  position: 'relative',
+                  height: 260,
+                  boxShadow: 'var(--shadow-sm)',
+                }}
+              >
+                <img
+                  src={photo.src}
+                  alt={photo.caption}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+                <div style={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 60%)',
+                  display: 'flex',
+                  alignItems: 'flex-end',
+                  padding: 16,
+                }}>
+                  <span style={{ color: '#fff', fontSize: 14, fontWeight: 500 }}>
+                    {photo.caption}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Booking Form Anchor Section ── */}
+      <div id="book-section">
+        <WorkshopBookingForm
+          initialWorkshop={selectedWorkshop}
+          workshopTypes={workshopTypes}
+        />
+      </div>
+    </>
+  );
+}

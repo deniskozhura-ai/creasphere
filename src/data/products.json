@@ -1,0 +1,105 @@
+[
+  {
+    "id": "prod-1788953997129",
+    "name": "Souvenir Candle \"Zatyshok\"",
+    "slug": "souvenir-candle-zatyshok",
+    "sku": "CS-ART-7129",
+    "price": 320,
+    "stock": 5,
+    "status": "in_stock",
+    "category_id": "1",
+    "category_name": "Подарунки ручної роботи",
+    "brand": "CreaSphere Craft",
+    "material": "Ручна робота",
+    "dimensions": "",
+    "production_time": "В наявності",
+    "description": "Унікальний авторський виріб ручної роботи майстрів CreaSphere.",
+    "images": [
+      "/gift_collection.webp"
+    ]
+  },
+  {
+    "id": "p1",
+    "name": "Подарунковий бокс «Теплий вечір»",
+    "slug": "gift-box-warm-evening",
+    "sku": "CS-GIFT-01",
+    "price": 750,
+    "stock": 12,
+    "status": "in_stock",
+    "category_id": "1",
+    "category_name": "Подарунки ручної роботи",
+    "brand": "CreaSphere",
+    "material": "Крафтовий картон, натуральний соєвий віск",
+    "dimensions": "20 × 20 × 10 см",
+    "weight": "650 г",
+    "production_time": "В наявності",
+    "description": "Святковий подарунковий набір ручної роботи: авторська соєва ароматична свічка, добірний крафтовий чай, свіже імбирне печиво та дизайнерська листівка.",
+    "images": [
+      "/gift_collection.webp",
+      "/hero_products.webp"
+    ]
+  },
+  {
+    "id": "p2",
+    "name": "Керамічна чашка «Павлоградські світанки»",
+    "slug": "ceramic-cup-pavlograd",
+    "sku": "CS-CER-02",
+    "price": 380,
+    "stock": 8,
+    "status": "in_stock",
+    "category_id": "2",
+    "category_name": "Сувеніри та декор",
+    "brand": "КреаСфера Арт",
+    "material": "Глина, керамічна глазур",
+    "dimensions": "350 мл",
+    "weight": "320 г",
+    "production_time": "В наявності",
+    "description": "Ексклюзивна чашка з авторським розписом ручної роботи, створена у нашій керамічній майстерні. Приємна на дотик, витримує гарячі напої.",
+    "images": [
+      "/gallery1.jpg",
+      "/gallery2.jpg"
+    ]
+  },
+  {
+    "id": "p3",
+    "name": "Набір для творчості «Юний Скульптор»",
+    "slug": "kit-young-sculptor",
+    "sku": "CS-KIT-03",
+    "price": 520,
+    "stock": 15,
+    "status": "in_stock",
+    "category_id": "3",
+    "category_name": "Творчі набори",
+    "brand": "CreaSphere Kids",
+    "material": "Глина, дерево, акрил",
+    "dimensions": "25 × 18 × 8 см",
+    "weight": "1200 г",
+    "production_time": "В наявності",
+    "description": "Повний набір матеріалів для ліплення власної керамічної фігурки вдома. Включає спеціальну глину, набір стеків, акрилові фарби та пензлики.",
+    "images": [
+      "/kids_workshop.webp",
+      "/workshop1.jpg"
+    ]
+  },
+  {
+    "id": "p4",
+    "name": "Текстильний ведмедик «Тіммі»",
+    "slug": "textile-bear-timmy",
+    "sku": "CS-TOY-04",
+    "price": 620,
+    "stock": 5,
+    "status": "in_stock",
+    "category_id": "4",
+    "category_name": "Дитячі іграшки",
+    "brand": "CreaSphere Craft",
+    "material": "Льон, бавовна, гіпоалергенний наповнювач",
+    "dimensions": "28 см",
+    "weight": "210 г",
+    "production_time": "2-3 дні під замовлення",
+    "description": "М'який авторський ведмедик ручної роботи у в'язаному светрику. Безпечний для найменших, деталі надійно вишиті.",
+    "images": [
+      "/workshop2.jpg",
+      "/about1.jpg"
+    ]
+  }
+]

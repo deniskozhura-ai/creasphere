@@ -1,0 +1,73 @@
+[
+  {
+    "id": "wb-1788953839677",
+    "booking_number": "MK-839677",
+    "customer_name": "Sofiya Bondar",
+    "customer_phone": "+380679876543",
+    "customer_email": null,
+    "workshop_title": "Гончарство та кераміка",
+    "participants_count": 1,
+    "participant_age": "9 years",
+    "preferred_date": "За домовленістю",
+    "preferred_time": "14:00",
+    "notes": "",
+    "status": "new",
+    "created_at": "2026-09-09 11:37"
+  },
+  {
+    "id": "wb-1788952012881",
+    "booking_number": "MK-012881",
+    "customer_name": "Катерина Василенко",
+    "customer_phone": "+380991234567",
+    "customer_email": "kateryna@example.com",
+    "workshop_title": "Ароматичні соєві свічки",
+    "participants_count": 2,
+    "preferred_date": "2026-09-18",
+    "preferred_time": "15:00",
+    "notes": "Подарунок подрузі на день народження",
+    "status": "confirmed",
+    "created_at": "2026-09-09 11:06"
+  },
+  {
+    "id": "wb-1",
+    "booking_number": "MK-849202",
+    "customer_name": "Марія Коваленко",
+    "customer_phone": "+380 95 321 6543",
+    "customer_email": "mariya.k@gmail.com",
+    "workshop_title": "Гончарство та кераміка",
+    "participants_count": 2,
+    "preferred_date": "2026-09-12",
+    "preferred_time": "14:00",
+    "notes": "Хочемо зліпити парні чашки до річниці",
+    "status": "new",
+    "created_at": "2026-09-09 11:20"
+  },
+  {
+    "id": "wb-2",
+    "booking_number": "MK-849185",
+    "customer_name": "Олександр Бойко",
+    "customer_phone": "+380 67 987 6543",
+    "customer_email": "boyko.alex@ukr.net",
+    "workshop_title": "Дитячі свята та дні народження",
+    "participants_count": 6,
+    "preferred_date": "2026-09-15",
+    "preferred_time": "11:30",
+    "notes": "День народження доньки 8 років, майстер-клас з розпису або мозаїки",
+    "status": "confirmed",
+    "created_at": "2026-09-08 16:45"
+  },
+  {
+    "id": "wb-3",
+    "booking_number": "MK-849140",
+    "customer_name": "Тетяна Мельник",
+    "customer_phone": "+380 50 444 3322",
+    "customer_email": "tanya.melnik@gmail.com",
+    "workshop_title": "Ароматичні соєві свічки",
+    "participants_count": 1,
+    "preferred_date": "2026-09-10",
+    "preferred_time": "16:00",
+    "notes": "Індивідуальне заняття",
+    "status": "completed",
+    "created_at": "2026-09-07 10:15"
+  }
+]
