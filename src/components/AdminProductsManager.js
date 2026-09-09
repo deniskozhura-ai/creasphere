@@ -78,12 +78,23 @@ export default function AdminProductsManager({ initialProducts }) {
 
   const [form, setForm] = useState(defaultForm);
 
-  const categories = [
+  const [categories, setCategories] = useState([
     { id: '1', name: 'Подарунки ручної роботи' },
     { id: '2', name: 'Сувеніри та декор' },
     { id: '3', name: 'Творчі набори' },
     { id: '4', name: 'Дитячі іграшки' },
-  ];
+  ]);
+
+  useEffect(() => {
+    fetch('/api/categories')
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setCategories(data);
+        }
+      })
+      .catch((err) => console.error('Failed to load categories:', err));
+  }, []);
 
   const presetImages = [
     { label: 'Подарунковий бокс', url: '/gift_collection.webp' },
@@ -96,8 +107,11 @@ export default function AdminProductsManager({ initialProducts }) {
 
   const handleOpenAddModal = () => {
     setEditingProduct(null);
+    const firstCat = categories[0];
     setForm({
       ...defaultForm,
+      category_id: firstCat ? String(firstCat.id) : '1',
+      category_name: firstCat ? firstCat.name : 'Подарунки ручної роботи',
       sku: `CS-ART-${Math.floor(1000 + Math.random() * 9000)}`,
       images: ['/gift_collection.webp'],
     });
@@ -111,11 +125,13 @@ export default function AdminProductsManager({ initialProducts }) {
       ? item.images
       : [item.image || '/gift_collection.webp'];
 
+    const matchedCat = categories.find((c) => String(c.id) === String(item.category_id));
+
     setForm({
       name: item.name || '',
       sku: item.sku || '',
-      category_id: String(item.category_id || '1'),
-      category_name: item.category_name || 'Подарунки ручної роботи',
+      category_id: String(item.category_id || categories[0]?.id || '1'),
+      category_name: item.category_name || matchedCat?.name || categories[0]?.name || 'Подарунки ручної роботи',
       price: item.price !== undefined ? String(item.price) : '',
       stock: item.stock !== undefined ? String(item.stock) : '5',
       status: item.status || 'in_stock',
@@ -131,11 +147,11 @@ export default function AdminProductsManager({ initialProducts }) {
 
   const handleCategoryChange = (e) => {
     const catId = e.target.value;
-    const cat = categories.find((c) => c.id === catId);
+    const cat = categories.find((c) => String(c.id) === String(catId));
     setForm((prev) => ({
       ...prev,
       category_id: catId,
-      category_name: cat ? cat.name : '',
+      category_name: cat ? cat.name : prev.category_name,
     }));
   };
 
@@ -540,6 +556,11 @@ export default function AdminProductsManager({ initialProducts }) {
                       {c.name}
                     </option>
                   ))}
+                  {form.category_id && !categories.some((c) => String(c.id) === String(form.category_id)) && (
+                    <option value={form.category_id}>
+                      {form.category_name || 'Обрана категорія'}
+                    </option>
+                  )}
                 </select>
                 <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>
                   Товар з'явиться у цьому розділі магазину

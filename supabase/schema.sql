@@ -433,3 +433,14 @@ $$;
 -- Only service_role can execute atomic order creation
 REVOKE ALL ON FUNCTION public.create_order_atomic(VARCHAR, VARCHAR, VARCHAR, VARCHAR, TEXT, VARCHAR, VARCHAR, TEXT, JSONB) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.create_order_atomic(VARCHAR, VARCHAR, VARCHAR, VARCHAR, TEXT, VARCHAR, VARCHAR, TEXT, JSONB) TO service_role;
+
+-- ===================================================
+-- SEED DATA: DEFAULT CATEGORIES
+-- ===================================================
+INSERT INTO public.categories (name, slug, description)
+VALUES
+  ('Подарунки ручної роботи', 'handmade-gifts', 'Унікальні подарунки ручної роботи від майстрів CreaSphere'),
+  ('Сувеніри та декор', 'decor-souvenirs', 'Затишні сувеніри та предмети декору для дому'),
+  ('Творчі набори', 'creative-kits', 'Набори для творчості та самостійного створення шедеврів'),
+  ('Дитячі іграшки', 'kids-toys', 'Екологічні та безпечні в’язані та дерев’яні іграшки для дітей')
+ON CONFLICT (slug) DO NOTHING;

@@ -134,6 +134,49 @@ async function runAllSecurityTests() {
     });
     const ordersData = await ordersRes.json();
     assert(ordersRes.status === 200 && Array.isArray(ordersData), 'Authenticated admin can view orders (HTTP 200)');
+
+    // Authenticated category CRUD check
+    const catGetRes = await apiFetch('/api/categories');
+    assert(catGetRes.status === 200, 'GET /api/categories returns HTTP 200');
+
+    const catCreateRes = await apiFetch('/api/categories', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: adminCookie,
+      },
+      body: JSON.stringify({
+        name: 'Тестова Категорія 2026',
+        description: 'Категорія для автотесту',
+      }),
+    });
+    const catCreateData = await catCreateRes.json();
+    assert(catCreateRes.status === 200 && catCreateData.success, 'Authenticated admin can create new category (HTTP 200)');
+
+    const createdCatId = catCreateData.category?.id;
+    if (createdCatId) {
+      const catUpdateRes = await apiFetch('/api/categories', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: adminCookie,
+        },
+        body: JSON.stringify({
+          id: createdCatId,
+          name: 'Оновлена Тестова Категорія',
+          description: 'Оновлений опис',
+        }),
+      });
+      const catUpdateData = await catUpdateRes.json();
+      assert(catUpdateRes.status === 200 && catUpdateData.success, 'Authenticated admin can update category (HTTP 200)');
+
+      const catDelRes = await apiFetch(`/api/categories?id=${encodeURIComponent(createdCatId)}`, {
+        method: 'DELETE',
+        headers: { Cookie: adminCookie },
+      });
+      const catDelData = await catDelRes.json();
+      assert(catDelRes.status === 200 && catDelData.success, 'Authenticated admin can delete category (HTTP 200)');
+    }
   } catch (e) {
     assert(false, `Test 2 failed: ${e.message}`);
   }
@@ -442,6 +485,26 @@ async function runAllSecurityTests() {
       method: 'DELETE',
     });
     assert(delRes.status === 401, 'Unauthenticated DELETE /api/products returns HTTP 401');
+
+    // Category mutation without admin -> DENIED
+    const catPostRes = await apiFetch('/api/categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Hacked Cat' }),
+    });
+    assert(catPostRes.status === 401, 'Unauthenticated POST /api/categories returns HTTP 401');
+
+    const catPutRes = await apiFetch('/api/categories', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'cat-1', name: 'Hacked Cat' }),
+    });
+    assert(catPutRes.status === 401, 'Unauthenticated PUT /api/categories returns HTTP 401');
+
+    const catDelRes = await apiFetch('/api/categories?id=cat-1', {
+      method: 'DELETE',
+    });
+    assert(catDelRes.status === 401, 'Unauthenticated DELETE /api/categories returns HTTP 401');
   } catch (e) {
     assert(false, `Test 15 failed: ${e.message}`);
   }

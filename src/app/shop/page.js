@@ -7,6 +7,7 @@ import CustomOrderBanner from '@/components/CustomOrderBanner';
 import ShopProductGrid from '@/components/ShopProductGrid';
 import { DEMO_CATEGORIES } from '@/lib/demo-data';
 import { getProducts } from '@/lib/products-store';
+import { getCategories } from '@/lib/categories-store';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,7 +32,7 @@ export default async function ShopPage({ searchParams }) {
 
   let products = null;
   let count = 0;
-  let categories = DEMO_CATEGORIES;
+  let categories = getCategories();
 
   if (isSupabaseConfigured) {
     try {

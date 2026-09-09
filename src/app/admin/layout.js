@@ -54,6 +54,7 @@ export default function AdminLayout({ children }) {
   const links = [
     { href: '/admin', label: 'Головна панель', icon: '📊' },
     { href: '/admin/products', label: 'Товари', icon: '🧸' },
+    { href: '/admin/categories', label: 'Категорії', icon: '🏷️' },
     { href: '/admin/orders', label: 'Замовлення', icon: '📦' },
     { href: '/admin/custom-orders', label: 'Кастомні вироби', icon: '✨' },
     { href: '/admin/bookings', label: 'Записи на МК', icon: '🎨' },
