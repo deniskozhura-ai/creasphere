@@ -8,13 +8,13 @@ import {
   revokeAdminSession,
   getSessionTokenFromRequest,
 } from '@/lib/auth';
-import { applyRateLimit } from '@/lib/rate-limit';
+import { applyRateLimit, getClientIp } from '@/lib/rate-limit';
 
 export async function GET(request) {
   try {
     const token = await getSessionTokenFromRequest(request);
 
-    if (token && isValidAdminSession(token)) {
+    if (token && (await isValidAdminSession(token))) {
       return NextResponse.json({ authenticated: true });
     }
 
@@ -26,8 +26,10 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    // 1. Rate limiting: 5 failed attempts per 15 minutes per IP
-    const rateLimitResponse = applyRateLimit(request, 'admin-login', 5, 15 * 60 * 1000);
+    // 1. Rate limiting: 5 failed attempts per 15 minutes per IP + action
+    // Prevents credential stuffing / brute force across serverless instances
+    const ip = getClientIp(request);
+    const rateLimitResponse = await applyRateLimit(request, `admin-login:${ip}`, 5, 15 * 60 * 1000);
     if (rateLimitResponse) {
       return rateLimitResponse;
     }
@@ -51,10 +53,10 @@ export async function POST(request) {
       );
     }
 
-    // 3. Create cryptographically secure session
-    const sessionToken = createAdminSession();
+    // 3. Create cryptographically secure persistent session (SHA-256 hashed in DB)
+    const sessionToken = await createAdminSession();
 
-    // 4. Set HttpOnly Secure Cookie
+    // 4. Set HttpOnly Secure SameSite Cookie
     const cookieStore = await cookies();
     cookieStore.set(AUTH_COOKIE_NAME, sessionToken, {
       path: '/',
@@ -81,7 +83,7 @@ export async function DELETE(request) {
   try {
     const token = await getSessionTokenFromRequest(request);
     if (token) {
-      revokeAdminSession(token);
+      await revokeAdminSession(token);
     }
 
     const cookieStore = await cookies();

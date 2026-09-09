@@ -1,5 +1,6 @@
 -- ===================================================
 -- CreaSphere Database Schema & Row Level Security (RLS)
+-- Stage 2 Security Hardening
 -- Execute this script in your Supabase SQL Editor
 -- ===================================================
 
@@ -26,7 +27,7 @@ CREATE TABLE IF NOT EXISTS products (
   description TEXT,
   price DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
   compare_at_price DECIMAL(10, 2),
-  stock INTEGER NOT NULL DEFAULT 0,
+  stock INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0),
   category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
   brand VARCHAR(255) DEFAULT 'CreaSphere',
   material VARCHAR(255),
@@ -38,7 +39,7 @@ CREATE TABLE IF NOT EXISTS products (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 4. Orders Table
+-- 4. Orders Table (order_number UNIQUE NOT NULL)
 CREATE TABLE IF NOT EXISTS orders (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   order_number VARCHAR(100) UNIQUE NOT NULL,
@@ -48,7 +49,7 @@ CREATE TABLE IF NOT EXISTS orders (
   delivery_address TEXT,
   delivery_method VARCHAR(50) DEFAULT 'nova_poshta',
   payment_method VARCHAR(50) DEFAULT 'card',
-  total_amount DECIMAL(10, 2) NOT NULL,
+  total_amount DECIMAL(10, 2) NOT NULL CHECK (total_amount >= 0),
   status VARCHAR(50) DEFAULT 'pending',
   notes TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -60,9 +61,9 @@ CREATE TABLE IF NOT EXISTS order_items (
   order_id UUID REFERENCES orders(id) ON DELETE CASCADE,
   product_id UUID REFERENCES products(id) ON DELETE SET NULL,
   product_name VARCHAR(255) NOT NULL,
-  quantity INTEGER NOT NULL DEFAULT 1,
-  price DECIMAL(10, 2) NOT NULL,
-  total DECIMAL(10, 2) NOT NULL
+  quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
+  price DECIMAL(10, 2) NOT NULL CHECK (price >= 0),
+  total DECIMAL(10, 2) NOT NULL CHECK (total >= 0)
 );
 
 -- 6. Workshop Bookings Table
@@ -73,7 +74,7 @@ CREATE TABLE IF NOT EXISTS workshop_bookings (
   customer_phone VARCHAR(50) NOT NULL,
   customer_email VARCHAR(255),
   workshop_title VARCHAR(255) NOT NULL,
-  participants_count INTEGER NOT NULL DEFAULT 1,
+  participants_count INTEGER NOT NULL DEFAULT 1 CHECK (participants_count > 0),
   preferred_date VARCHAR(100),
   preferred_time VARCHAR(100),
   notes TEXT,
@@ -91,7 +92,7 @@ CREATE TABLE IF NOT EXISTS space_bookings (
   tariff VARCHAR(100) NOT NULL,
   date VARCHAR(100),
   time VARCHAR(100),
-  people_count INTEGER NOT NULL DEFAULT 1,
+  people_count INTEGER NOT NULL DEFAULT 1 CHECK (people_count > 0),
   notes TEXT,
   status VARCHAR(50) DEFAULT 'new',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -112,7 +113,23 @@ CREATE TABLE IF NOT EXISTS custom_orders (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Indexes for performance
+-- 9. Admin Sessions Table (Persistent serverless sessions with SHA-256 token hashing)
+CREATE TABLE IF NOT EXISTS admin_sessions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  token_hash VARCHAR(64) UNIQUE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  revoked_at TIMESTAMP WITH TIME ZONE
+);
+
+-- 10. Distributed Rate Limits Table
+CREATE TABLE IF NOT EXISTS rate_limits (
+  key VARCHAR(255) PRIMARY KEY,
+  count INTEGER NOT NULL DEFAULT 1,
+  reset_at BIGINT NOT NULL
+);
+
+-- Indexes for performance & rapid security lookups
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);
 CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
 CREATE INDEX IF NOT EXISTS idx_products_slug ON products(slug);
@@ -121,6 +138,8 @@ CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_workshop_bookings_status ON workshop_bookings(status);
 CREATE INDEX IF NOT EXISTS idx_space_bookings_status ON space_bookings(status);
 CREATE INDEX IF NOT EXISTS idx_custom_orders_status ON custom_orders(status);
+CREATE INDEX IF NOT EXISTS idx_admin_sessions_token_hash ON admin_sessions(token_hash);
+CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires_at ON admin_sessions(expires_at);
 
 -- ===================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
@@ -133,12 +152,15 @@ ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workshop_bookings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE space_bookings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE custom_orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE admin_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rate_limits ENABLE ROW LEVEL SECURITY;
 
 -- ---------------------------------------------------
 -- TABLE: categories
 -- SELECT: Public (anyone can browse categories)
 -- INSERT, UPDATE, DELETE: Service role / Admin only
 -- ---------------------------------------------------
+DROP POLICY IF EXISTS "Public categories are viewable by everyone" ON categories;
 CREATE POLICY "Public categories are viewable by everyone" ON categories
   FOR SELECT USING (true);
 
@@ -147,75 +169,217 @@ CREATE POLICY "Public categories are viewable by everyone" ON categories
 -- SELECT: Public (active products only)
 -- INSERT, UPDATE, DELETE: Service role / Admin only (NO public mutation!)
 -- ---------------------------------------------------
+DROP POLICY IF EXISTS "Public products are viewable by everyone" ON products;
 CREATE POLICY "Public products are viewable by everyone" ON products
   FOR SELECT USING (status = 'active');
 
 -- ---------------------------------------------------
--- TABLE: orders
--- SELECT: DENIED to public. ONLY authenticated Admin / Service Role can view customer orders and PII!
--- INSERT: Public allowed for checkout (with strict validation constraints)
--- UPDATE: DENIED to public. Only Admin / Service Role.
--- DELETE: DENIED to public. Only Admin / Service Role.
+-- TABLE: orders & order_items
+-- PUBLIC ACCESS: COMPLETELY CLOSED!
+-- No public SELECT, INSERT, UPDATE, or DELETE!
+-- All orders MUST be placed via POST /api/orders running with service role.
+-- This guarantees:
+-- 1. Server-authoritative pricing (client cannot set fake price/total).
+-- 2. Input validation & sanitization.
+-- 3. Atomic stock verification and decrement.
+-- 4. PII protection (customers cannot query other customers' orders).
 -- ---------------------------------------------------
-CREATE POLICY "Public can insert orders with validation" ON orders
-  FOR INSERT WITH CHECK (
-    total_amount > 0 AND 
-    length(customer_name) >= 2 AND 
-    length(customer_phone) >= 9
-  );
+DROP POLICY IF EXISTS "Public can insert orders with validation" ON orders;
+DROP POLICY IF EXISTS "Public can insert order items with validation" ON order_items;
 
 -- ---------------------------------------------------
--- TABLE: order_items
--- SELECT: DENIED to public.
--- INSERT: Public allowed for checkout (with valid positive quantity and price)
--- UPDATE: DENIED to public.
--- DELETE: DENIED to public.
+-- TABLE: workshop_bookings, space_bookings, custom_orders
+-- PUBLIC SELECT: STRICTLY DENIED (Customer PII protection!)
+-- PUBLIC UPDATE/DELETE: STRICTLY DENIED
+-- All bookings and custom orders must go through API routes with service role.
 -- ---------------------------------------------------
-CREATE POLICY "Public can insert order items with validation" ON order_items
-  FOR INSERT WITH CHECK (
-    quantity > 0 AND 
-    price >= 0
-  );
+DROP POLICY IF EXISTS "Public can insert workshop bookings" ON workshop_bookings;
+DROP POLICY IF EXISTS "Public can insert space bookings" ON space_bookings;
+DROP POLICY IF EXISTS "Public can insert custom orders" ON custom_orders;
 
 -- ---------------------------------------------------
--- TABLE: workshop_bookings
--- SELECT: DENIED to public. Customer PII (name, phone, email, notes) is protected!
--- INSERT: Public allowed to submit booking inquiry
--- UPDATE: DENIED to public.
--- DELETE: DENIED to public.
+-- TABLE: admin_sessions & rate_limits
+-- PUBLIC ACCESS: STRICTLY DENIED. Only accessible by service role.
 -- ---------------------------------------------------
-CREATE POLICY "Public can insert workshop bookings" ON workshop_bookings
-  FOR INSERT WITH CHECK (
-    length(customer_name) >= 2 AND 
-    length(customer_phone) >= 9 AND 
-    participants_count >= 1
-  );
 
--- ---------------------------------------------------
--- TABLE: space_bookings
--- SELECT: DENIED to public.
--- INSERT: Public allowed to submit rental inquiry
--- UPDATE: DENIED to public.
--- DELETE: DENIED to public.
--- ---------------------------------------------------
-CREATE POLICY "Public can insert space bookings" ON space_bookings
-  FOR INSERT WITH CHECK (
-    length(customer_name) >= 2 AND 
-    length(customer_phone) >= 9
-  );
+-- ===================================================
+-- STORED PROCEDURES / ATOMIC FUNCTIONS
+-- ===================================================
 
--- ---------------------------------------------------
--- TABLE: custom_orders
--- SELECT: DENIED to public.
--- INSERT: Public allowed to submit custom order request
--- UPDATE: DENIED to public.
--- DELETE: DENIED to public.
--- ---------------------------------------------------
-CREATE POLICY "Public can insert custom orders" ON custom_orders
-  FOR INSERT WITH CHECK (
-    length(customer_name) >= 2 AND 
-    length(customer_phone) >= 9
-  );
+-- 1. Atomic Rate Limiter Function
+CREATE OR REPLACE FUNCTION check_rate_limit(
+  p_key VARCHAR(255),
+  p_max_requests INTEGER,
+  p_window_ms BIGINT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_now BIGINT := (extract(epoch from now()) * 1000)::BIGINT;
+  v_record RECORD;
+BEGIN
+  SELECT count, reset_at INTO v_record
+  FROM rate_limits
+  WHERE key = p_key
+  FOR UPDATE;
 
--- Service role full access bypasses RLS automatically in Supabase,
--- so API routes using service key have full administrative management capabilities.
+  IF NOT FOUND OR v_record.reset_at < v_now THEN
+    INSERT INTO rate_limits (key, count, reset_at)
+    VALUES (p_key, 1, v_now + p_window_ms)
+    ON CONFLICT (key) DO UPDATE
+    SET count = 1, reset_at = v_now + p_window_ms;
+
+    RETURN jsonb_build_object('allowed', true, 'remaining', p_max_requests - 1, 'retryAfter', 0);
+  END IF;
+
+  IF v_record.count >= p_max_requests THEN
+    RETURN jsonb_build_object('allowed', false, 'remaining', 0, 'retryAfter', CEIL((v_record.reset_at - v_now) / 1000.0)::INTEGER);
+  END IF;
+
+  UPDATE rate_limits
+  SET count = count + 1
+  WHERE key = p_key;
+
+  RETURN jsonb_build_object('allowed', true, 'remaining', p_max_requests - (v_record.count + 1), 'retryAfter', 0);
+END;
+$$;
+
+-- 2. Atomic Order Creation Function with Stock Row-Locking (FOR UPDATE)
+-- Solves:
+-- - Price manipulation (reads real catalog price)
+-- - Race condition in stock (FOR UPDATE locks row and decrements atomically)
+-- - Partial failure (transaction rolls back all changes if any item fails)
+CREATE OR REPLACE FUNCTION create_order_atomic(
+  p_order_number VARCHAR(100),
+  p_customer_name VARCHAR(255),
+  p_customer_phone VARCHAR(50),
+  p_customer_email VARCHAR(255),
+  p_delivery_address TEXT,
+  p_delivery_method VARCHAR(50),
+  p_payment_method VARCHAR(50),
+  p_notes TEXT,
+  p_items JSONB
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_order_id UUID;
+  v_item JSONB;
+  v_product_id UUID;
+  v_requested_qty INTEGER;
+  v_current_stock INTEGER;
+  v_product_name VARCHAR(255);
+  v_product_price DECIMAL(10, 2);
+  v_product_status VARCHAR(50);
+  v_item_total DECIMAL(10, 2);
+  v_calc_total DECIMAL(10, 2) := 0.00;
+BEGIN
+  -- Validate uniqueness of order_number
+  IF EXISTS (SELECT 1 FROM orders WHERE order_number = p_order_number) THEN
+    RAISE EXCEPTION 'ORDER_NUMBER_COLLISION: %', p_order_number;
+  END IF;
+
+  -- Validate non-empty items
+  IF p_items IS NULL OR jsonb_array_length(p_items) = 0 THEN
+    RAISE EXCEPTION 'EMPTY_ORDER_ITEMS';
+  END IF;
+
+  -- Pre-insert order container
+  INSERT INTO orders (
+    order_number,
+    customer_name,
+    customer_phone,
+    customer_email,
+    delivery_address,
+    delivery_method,
+    payment_method,
+    total_amount,
+    status,
+    notes
+  ) VALUES (
+    p_order_number,
+    p_customer_name,
+    p_customer_phone,
+    p_customer_email,
+    p_delivery_address,
+    p_delivery_method,
+    p_payment_method,
+    0.00,
+    'pending',
+    p_notes
+  ) RETURNING id INTO v_order_id;
+
+  -- Process and lock each product row
+  FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
+  LOOP
+    v_product_id := (v_item->>'id')::UUID;
+    v_requested_qty := (v_item->>'quantity')::INTEGER;
+
+    IF v_requested_qty IS NULL OR v_requested_qty <= 0 THEN
+      RAISE EXCEPTION 'INVALID_QUANTITY for product %', v_product_id;
+    END IF;
+
+    -- Row-level lock FOR UPDATE prevents race conditions across concurrent checkouts
+    SELECT name, price, stock, status
+    INTO v_product_name, v_product_price, v_current_stock, v_product_status
+    FROM products
+    WHERE id = v_product_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'PRODUCT_NOT_FOUND: %', v_product_id;
+    END IF;
+
+    -- Check stock availability
+    IF v_product_status <> 'pre_order' AND v_current_stock < v_requested_qty THEN
+      RAISE EXCEPTION 'INSUFFICIENT_STOCK: % (available: %, requested: %)', v_product_name, v_current_stock, v_requested_qty;
+    END IF;
+
+    -- Decrement stock atomically if not pre_order
+    IF v_product_status <> 'pre_order' THEN
+      UPDATE products
+      SET stock = stock - v_requested_qty,
+          updated_at = NOW()
+      WHERE id = v_product_id;
+    END IF;
+
+    -- Authoritative server pricing
+    v_item_total := ROUND((v_product_price * v_requested_qty)::numeric, 2);
+    v_calc_total := v_calc_total + v_item_total;
+
+    -- Insert order item
+    INSERT INTO order_items (
+      order_id,
+      product_id,
+      product_name,
+      quantity,
+      price,
+      total
+    ) VALUES (
+      v_order_id,
+      v_product_id,
+      v_product_name,
+      v_requested_qty,
+      v_product_price,
+      v_item_total
+    );
+  END LOOP;
+
+  -- Set final server-calculated total
+  UPDATE orders
+  SET total_amount = v_calc_total
+  WHERE id = v_order_id;
+
+  -- Return minimal non-PII confirmation
+  RETURN jsonb_build_object(
+    'success', true,
+    'order_id', v_order_id,
+    'order_number', p_order_number,
+    'total_amount', v_calc_total
+  );
+END;
+$$;

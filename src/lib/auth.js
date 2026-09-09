@@ -1,28 +1,51 @@
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { getServiceSupabase, isSupabaseAdminConfigured } from './supabase-admin';
 
 export const AUTH_COOKIE_NAME = 'creasphere_admin_auth';
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-// In-memory session store (backed by globalThis for serverless/dev hot-reloading)
-if (!globalThis.__creasphere_sessions) {
-  globalThis.__creasphere_sessions = new Map();
-}
-const sessions = globalThis.__creasphere_sessions;
+// Local persistent store path used ONLY for offline development and local test execution
+const DEV_SESSION_STORE = path.join(os.tmpdir(), 'creasphere_admin_sessions.json');
 
-// Clean up expired sessions periodically
-function purgeExpiredSessions() {
-  const now = Date.now();
-  for (const [token, data] of sessions.entries()) {
-    if (data.expiresAt < now) {
-      sessions.delete(token);
+/**
+ * Computes SHA-256 hash of raw session token
+ * Raw token is NEVER stored in the database!
+ */
+export function hashSessionToken(token) {
+  if (!token || typeof token !== 'string') return '';
+  return crypto.createHash('sha256').update(token.trim()).digest('hex');
+}
+
+/**
+ * Helper for dev/test fallback persistent session storage
+ */
+function readDevSessions() {
+  try {
+    if (fs.existsSync(DEV_SESSION_STORE)) {
+      const data = JSON.parse(fs.readFileSync(DEV_SESSION_STORE, 'utf-8'));
+      return Array.isArray(data) ? data : [];
     }
+  } catch (e) {
+    // ignore read error
+  }
+  return [];
+}
+
+function writeDevSessions(sessions) {
+  try {
+    fs.writeFileSync(DEV_SESSION_STORE, JSON.stringify(sessions, null, 2), 'utf-8');
+  } catch (e) {
+    // ignore write error
   }
 }
 
 /**
- * Validates the admin password against environment variable
+ * Validates admin password against environment variable
  * Rejects immediately if ADMIN_PASSWORD is not set - NO FALLBACKS!
  */
 export function verifyAdminPassword(inputPassword) {
@@ -34,7 +57,6 @@ export function verifyAdminPassword(inputPassword) {
     return false;
   }
 
-  // Timing-safe comparison to prevent timing attacks
   const inputBuffer = Buffer.from(inputPassword.trim());
   const expectedBuffer = Buffer.from(expectedPassword.trim());
 
@@ -46,45 +68,144 @@ export function verifyAdminPassword(inputPassword) {
 }
 
 /**
- * Creates a cryptographically random session token
+ * Creates a cryptographically random session token,
+ * hashes it with SHA-256, and stores the hash in the persistent database.
+ * Returns the raw unhashed token to be placed in HttpOnly cookie.
  */
-export function createAdminSession() {
-  purgeExpiredSessions();
-  const token = crypto.randomBytes(32).toString('hex');
-  const now = Date.now();
+export async function createAdminSession() {
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = hashSessionToken(rawToken);
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + SESSION_TTL_MS);
 
-  sessions.set(token, {
-    createdAt: now,
-    expiresAt: now + SESSION_TTL_MS,
+  if (isSupabaseAdminConfigured) {
+    try {
+      const supabase = getServiceSupabase();
+      const { error } = await supabase.from('admin_sessions').insert([
+        {
+          token_hash: tokenHash,
+          created_at: now.toISOString(),
+          expires_at: expiresAt.toISOString(),
+          revoked_at: null,
+        },
+      ]);
+
+      if (error) {
+        console.error('[SECURITY ERROR] Failed to save session to Supabase:', error.message);
+        throw new Error('Database session creation failed');
+      }
+      return rawToken;
+    } catch (err) {
+      console.error('Session creation DB error:', err);
+      if (process.env.NODE_ENV === 'production') {
+        throw err;
+      }
+    }
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[CRITICAL SECURITY WARNING] Production environment detected without persistent Supabase session store!');
+  }
+
+  // Development/test persistent fallback
+  const sessions = readDevSessions().filter((s) => new Date(s.expires_at) > now);
+  sessions.push({
+    token_hash: tokenHash,
+    created_at: now.toISOString(),
+    expires_at: expiresAt.toISOString(),
+    revoked_at: null,
   });
+  writeDevSessions(sessions);
 
-  return token;
+  return rawToken;
 }
 
 /**
- * Validates if a session token is valid and not expired
+ * Validates if a raw session token is valid and unrevoked in the database.
+ * Hashes incoming token with SHA-256 before lookup.
  */
-export function isValidAdminSession(token) {
-  if (!token || typeof token !== 'string') return false;
+export async function isValidAdminSession(rawToken) {
+  if (!rawToken || typeof rawToken !== 'string') return false;
 
-  purgeExpiredSessions();
-  const session = sessions.get(token);
+  const tokenHash = hashSessionToken(rawToken);
+  if (!tokenHash) return false;
+
+  const now = new Date();
+
+  if (isSupabaseAdminConfigured) {
+    try {
+      const supabase = getServiceSupabase();
+      const { data, error } = await supabase
+        .from('admin_sessions')
+        .select('token_hash, expires_at, revoked_at')
+        .eq('token_hash', tokenHash)
+        .is('revoked_at', null)
+        .gt('expires_at', now.toISOString())
+        .maybeSingle();
+
+      if (error) {
+        console.error('Session validation error:', error.message);
+        return false;
+      }
+
+      return Boolean(data);
+    } catch (err) {
+      console.error('Session lookup exception:', err);
+      return false;
+    }
+  }
+
+  // Development/test persistent fallback
+  const sessions = readDevSessions();
+  const session = sessions.find((s) => s.token_hash === tokenHash);
   if (!session) return false;
 
-  if (session.expiresAt < Date.now()) {
-    sessions.delete(token);
-    return false;
-  }
+  if (session.revoked_at) return false;
+  if (new Date(session.expires_at) <= now) return false;
 
   return true;
 }
 
 /**
- * Invalidates / revokes a session
+ * Revokes an admin session in the persistent database.
  */
-export function revokeAdminSession(token) {
-  if (!token) return false;
-  return sessions.delete(token);
+export async function revokeAdminSession(rawToken) {
+  if (!rawToken || typeof rawToken !== 'string') return false;
+
+  const tokenHash = hashSessionToken(rawToken);
+  const now = new Date().toISOString();
+
+  if (isSupabaseAdminConfigured) {
+    try {
+      const supabase = getServiceSupabase();
+      const { error } = await supabase
+        .from('admin_sessions')
+        .update({ revoked_at: now })
+        .eq('token_hash', tokenHash);
+
+      if (error) {
+        console.error('Session revocation error:', error.message);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.error('Session revocation exception:', err);
+      return false;
+    }
+  }
+
+  // Development/test persistent fallback
+  const sessions = readDevSessions();
+  let found = false;
+  const updated = sessions.map((s) => {
+    if (s.token_hash === tokenHash) {
+      found = true;
+      return { ...s, revoked_at: now };
+    }
+    return s;
+  });
+  writeDevSessions(updated);
+  return found;
 }
 
 /**
@@ -129,7 +250,7 @@ export async function getSessionTokenFromRequest(request) {
 export async function requireAdmin(request) {
   const token = await getSessionTokenFromRequest(request);
 
-  if (!token || !isValidAdminSession(token)) {
+  if (!token || !(await isValidAdminSession(token))) {
     return NextResponse.json(
       { error: 'Доступ заборонено: потрібна авторизація адміністратора' },
       { status: 401 }

@@ -52,14 +52,12 @@ export function addProduct(product) {
   const updated = [product, ...current.filter((p) => p.id !== product.id && p.sku !== product.sku)];
   globalThis.__creasphere_products = updated;
 
-  // Save to /tmp (writable on Netlify and serverless)
   try {
     fs.writeFileSync(WRITABLE_FILE, JSON.stringify(updated, null, 2), 'utf-8');
   } catch (e) {
     console.warn('Could not write to tmp products file:', e.message);
   }
 
-  // Also save to bundle file in local dev if writable
   try {
     const dir = path.dirname(BUNDLE_FILE);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -106,3 +104,45 @@ export function deleteProduct(id) {
   return true;
 }
 
+/**
+ * Atomic stock decrement for order processing.
+ * Verifies all items have sufficient stock before decrementing.
+ * Throws error if any item is out of stock or insufficient.
+ */
+export function decrementStockAtomic(items) {
+  const products = getProducts();
+
+  // Phase 1: Verify all products and quantities
+  for (const item of items) {
+    const product = products.find((p) => p.id === item.id || p.sku === item.id || p.slug === item.id);
+    if (!product) {
+      throw new Error(`PRODUCT_NOT_FOUND: ${item.id}`);
+    }
+    if (product.status !== 'pre_order' && (product.stock === undefined || product.stock < item.quantity)) {
+      throw new Error(`INSUFFICIENT_STOCK: ${product.name} (available: ${product.stock || 0}, requested: ${item.quantity})`);
+    }
+  }
+
+  // Phase 2: Decrement stock
+  for (const item of items) {
+    const product = products.find((p) => p.id === item.id || p.sku === item.id || p.slug === item.id);
+    if (product && product.status !== 'pre_order') {
+      product.stock = Math.max(0, (product.stock || 0) - item.quantity);
+      if (product.stock === 0) {
+        product.status = 'out_of_stock';
+      }
+    }
+  }
+
+  globalThis.__creasphere_products = products;
+
+  try {
+    fs.writeFileSync(WRITABLE_FILE, JSON.stringify(products, null, 2), 'utf-8');
+  } catch (e) {}
+
+  try {
+    fs.writeFileSync(BUNDLE_FILE, JSON.stringify(products, null, 2), 'utf-8');
+  } catch (e) {}
+
+  return true;
+}

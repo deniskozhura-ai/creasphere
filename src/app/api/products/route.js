@@ -1,21 +1,21 @@
 import { NextResponse } from 'next/server';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabaseAdmin, isSupabaseAdminConfigured } from '@/lib/supabase-admin';
 import { getProducts, addProduct, updateProduct, deleteProduct } from '@/lib/products-store';
 import { requireAdmin } from '@/lib/auth';
 import { validateProductPayload, sanitizeString } from '@/lib/validation';
 
 export async function GET() {
   try {
-    if (isSupabaseConfigured) {
-      const { data: dbProducts, error } = await supabase
+    if (isSupabaseAdminConfigured) {
+      const { data: dbProducts, error } = await supabaseAdmin
         .from('products')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Supabase get products error:', error);
+        console.error('Supabase get products error:', error.message);
         return NextResponse.json(
-          { error: 'Помилка отримання товарів з бази даних' },
+          { error: 'Помилка отримання товарів' },
           { status: 500 }
         );
       }
@@ -25,7 +25,7 @@ export async function GET() {
     const products = getProducts();
     return NextResponse.json(products);
   } catch (err) {
-    console.error('Get products error:', err);
+    console.error('Get products error:', err.message);
     return NextResponse.json(
       { error: 'Не вдалося отримати список товарів' },
       { status: 500 }
@@ -70,8 +70,8 @@ export async function POST(request) {
       images: sanitized.images,
     };
 
-    if (isSupabaseConfigured) {
-      const { data: dbProduct, error } = await supabase
+    if (isSupabaseAdminConfigured) {
+      const { data: dbProduct, error } = await supabaseAdmin
         .from('products')
         .insert([
           {
@@ -92,7 +92,7 @@ export async function POST(request) {
         .single();
 
       if (error || !dbProduct) {
-        console.error('Supabase product insert error:', error);
+        console.error('Supabase product insert error:', error.message);
         return NextResponse.json(
           { error: 'Помилка збереження товару в базі даних' },
           { status: 503 }
@@ -114,7 +114,7 @@ export async function POST(request) {
       message: 'Товар успішно додано!',
     });
   } catch (err) {
-    console.error('Add product API error:', err);
+    console.error('Add product API error:', err.message);
     return NextResponse.json(
       { error: 'Помилка при збереженні товару' },
       { status: 500 }
@@ -141,8 +141,8 @@ export async function PUT(request) {
       return NextResponse.json({ error: errors[0], errors }, { status: 400 });
     }
 
-    if (isSupabaseConfigured) {
-      const { data: dbUpdated, error } = await supabase
+    if (isSupabaseAdminConfigured) {
+      const { data: dbUpdated, error } = await supabaseAdmin
         .from('products')
         .update({
           name: sanitized.name,
@@ -160,7 +160,7 @@ export async function PUT(request) {
         .single();
 
       if (error) {
-        console.error('Supabase product update error:', error);
+        console.error('Supabase product update error:', error.message);
         return NextResponse.json({ error: 'Помилка оновлення товару в базі даних' }, { status: 503 });
       }
 
@@ -179,7 +179,7 @@ export async function PUT(request) {
       message: 'Товар оновлено!',
     });
   } catch (err) {
-    console.error('Update product API error:', err);
+    console.error('Update product API error:', err.message);
     return NextResponse.json({ error: 'Помилка оновлення' }, { status: 500 });
   }
 }
@@ -197,14 +197,14 @@ export async function DELETE(request) {
       return NextResponse.json({ error: 'ID товару обов’язковий' }, { status: 400 });
     }
 
-    if (isSupabaseConfigured) {
-      const { error } = await supabase
+    if (isSupabaseAdminConfigured) {
+      const { error } = await supabaseAdmin
         .from('products')
         .delete()
         .or(`id.eq.${id},sku.eq.${id}`);
 
       if (error) {
-        console.error('Supabase product delete error:', error);
+        console.error('Supabase product delete error:', error.message);
         return NextResponse.json({ error: 'Помилка видалення товару з бази даних' }, { status: 503 });
       }
 
@@ -214,7 +214,7 @@ export async function DELETE(request) {
     const ok = deleteProduct(id);
     return NextResponse.json({ success: ok });
   } catch (err) {
-    console.error('Delete product API error:', err);
+    console.error('Delete product API error:', err.message);
     return NextResponse.json({ error: 'Помилка видалення' }, { status: 500 });
   }
 }

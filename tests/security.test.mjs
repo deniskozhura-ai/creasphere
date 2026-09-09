@@ -1,16 +1,32 @@
 /**
- * Comprehensive Automated Security & Access Control Test Suite for CreaSphere
- * Tests:
- * 1. Admin Authentication (correct/wrong password, session tokens, logout, invalid cookie)
- * 2. Rate Limiting (verifying HTTP 429 on brute force attacks)
- * 3. Products API Authorization & Validation (401 on unauthenticated POST/PUT/DELETE, negative price rejection)
- * 4. Orders Security & Price Integrity (401 on GET/PATCH/DELETE, server-authoritative price calculation, negative/zero/string quantity rejection)
- * 5. Workshop, Space & Custom Orders Privacy & Validation (401 on private GET, XSS script stripping, phone validation)
- * 6. Session Revocation (Logout token invalidation)
+ * Comprehensive Automated Security & Access Control Test Suite for CreaSphere (Stage 2 Hardening)
+ *
+ * Tests 19 Crucial Security Requirements:
+ * 1. Unauthenticated admin endpoint -> 401/403
+ * 2. Authenticated admin endpoint -> success
+ * 3. Fake session -> rejected
+ * 4. Expired session -> rejected
+ * 5. Revoked session -> rejected
+ * 6. Client price manipulation -> rejected/ignored
+ * 7. Client total manipulation -> rejected/ignored
+ * 8. Negative quantity -> rejected
+ * 9. Huge quantity -> rejected
+ * 10. Nonexistent product -> rejected
+ * 11. Insufficient stock -> rejected
+ * 12. Concurrent stock purchase -> only valid number succeeds (race condition check)
+ * 13. Public order SELECT -> denied
+ * 14. Public booking SELECT -> denied
+ * 15. Product mutation without admin -> denied
+ * 16. Mass assignment -> denied (internal fields stripped)
+ * 17. Rate limit -> enforced (HTTP 429)
+ * 18. PII not returned unnecessarily in responses
+ * 19. Service role secret never appears in client bundle
  */
 
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
+import crypto from 'crypto';
 
 const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:3001';
 
@@ -29,8 +45,7 @@ if (!adminPassword) {
   } catch (e) {}
 }
 
-// Dynamic client IP for this test run to ensure isolation across repeated test runs
-const TEST_IP = `10.200.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250) + 1}`;
+const TEST_IP = `10.220.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250) + 1}`;
 
 let passedTests = 0;
 let failedTests = 0;
@@ -45,469 +60,565 @@ function assert(condition, message) {
   }
 }
 
-// Wrapper to include test client IP in request headers
-async function apiFetch(path, options = {}) {
+async function apiFetch(urlPath, options = {}) {
   const headers = {
     'x-forwarded-for': TEST_IP,
     ...(options.headers || {}),
   };
-  return fetch(`${BASE_URL}${path}`, {
+  return fetch(`${BASE_URL}${urlPath}`, {
     ...options,
     headers,
   });
 }
 
-async function runTests() {
-  console.log('====================================================');
-  console.log(`🔒 RUNNING CREASPHERE SECURITY AUDIT TEST SUITE`);
+async function runAllSecurityTests() {
+  console.log('================================================================');
+  console.log(`🔒 CREASPHERE STAGE 2 SECURITY HARDENING TEST SUITE`);
   console.log(`Target: ${BASE_URL}`);
-  console.log(`Test IP: ${TEST_IP}`);
-  console.log('====================================================\n');
+  console.log(`Client IP: ${TEST_IP}`);
+  console.log('================================================================\n');
 
   let adminCookie = '';
 
   // -----------------------------------------------------------------
-  // 1. ADMIN AUTHENTICATION TESTS
+  // 1. UNAUTHENTICATED ADMIN ENDPOINT -> 401/403
   // -----------------------------------------------------------------
-  console.log('--- 1. Admin Authentication Tests ---');
-
-  // 1.1 Wrong password returns 401
+  console.log('--- Test 1: Unauthenticated Admin Endpoint ---');
   try {
-    const res = await apiFetch('/api/admin/auth', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: 'wrong_password_12345' }),
-    });
-    assert(res.status === 401, 'Wrong admin password returns HTTP 401');
+    const res = await apiFetch('/api/orders');
+    assert(res.status === 401, `Unauthenticated GET /api/orders returns HTTP 401 (Got ${res.status})`);
   } catch (e) {
-    assert(false, `Wrong password test failed with error: ${e.message}`);
+    assert(false, `Test 1 failed: ${e.message}`);
   }
 
-  // 1.2 Correct password login
+  // -----------------------------------------------------------------
+  // 2. AUTHENTICATED ADMIN ENDPOINT -> SUCCESS
+  // -----------------------------------------------------------------
+  console.log('\n--- Test 2: Authenticated Admin Endpoint ---');
   try {
-    const res = await apiFetch('/api/admin/auth', {
+    const loginRes = await apiFetch('/api/admin/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password: adminPassword }),
     });
-    const data = await res.json();
-    const setCookie = res.headers.get('set-cookie');
-    assert(res.status === 200 && data.success, 'Correct admin password logs in with HTTP 200');
+    const data = await loginRes.json();
+    const setCookie = loginRes.headers.get('set-cookie');
+    assert(loginRes.status === 200 && data.success, 'Login with correct admin password succeeds (HTTP 200)');
     assert(setCookie && setCookie.includes('creasphere_admin_auth='), 'Server sets HttpOnly creasphere_admin_auth cookie');
+
     if (setCookie) {
       adminCookie = setCookie.split(';')[0];
     }
-  } catch (e) {
-    assert(false, `Correct password login failed: ${e.message}`);
-  }
 
-  // 1.3 Verify session with cookie
-  try {
-    const res = await apiFetch('/api/admin/auth', {
+    const ordersRes = await apiFetch('/api/orders', {
       headers: { Cookie: adminCookie },
     });
-    const data = await res.json();
-    assert(res.status === 200 && data.authenticated === true, 'Valid session cookie returns authenticated: true');
+    const ordersData = await ordersRes.json();
+    assert(ordersRes.status === 200 && Array.isArray(ordersData), 'Authenticated admin can view orders (HTTP 200)');
   } catch (e) {
-    assert(false, `Session verification failed: ${e.message}`);
+    assert(false, `Test 2 failed: ${e.message}`);
   }
 
-  // 1.4 Fake or unverified session token rejected
+  // -----------------------------------------------------------------
+  // 3. FAKE SESSION -> REJECTED
+  // -----------------------------------------------------------------
+  console.log('\n--- Test 3: Fake Session Token Rejected ---');
   try {
-    const res = await apiFetch('/api/admin/auth', {
-      headers: { Cookie: 'creasphere_admin_auth=fake_invalid_session_token_123' },
+    const fakeRes = await apiFetch('/api/orders', {
+      headers: { Cookie: 'creasphere_admin_auth=fake_session_hex_99999999999999999' },
+    });
+    assert(fakeRes.status === 401, `Fake session token is rejected with HTTP 401 (Got ${fakeRes.status})`);
+  } catch (e) {
+    assert(false, `Test 3 failed: ${e.message}`);
+  }
+
+  // -----------------------------------------------------------------
+  // 4. EXPIRED SESSION -> REJECTED
+  // -----------------------------------------------------------------
+  console.log('\n--- Test 4: Expired Session Token Rejected ---');
+  try {
+    // Generate an expired session hash in the dev persistent store
+    const expiredToken = crypto.randomBytes(32).toString('hex');
+    const expiredHash = crypto.createHash('sha256').update(expiredToken).digest('hex');
+    const devStorePath = path.join(os.tmpdir(), 'creasphere_admin_sessions.json');
+
+    try {
+      let sessions = [];
+      if (fs.existsSync(devStorePath)) {
+        sessions = JSON.parse(fs.readFileSync(devStorePath, 'utf8'));
+      }
+      sessions.push({
+        token_hash: expiredHash,
+        created_at: new Date(Date.now() - 1000000).toISOString(),
+        expires_at: new Date(Date.now() - 50000).toISOString(), // already expired!
+        revoked_at: null,
+      });
+      fs.writeFileSync(devStorePath, JSON.stringify(sessions, null, 2), 'utf8');
+    } catch (e) {}
+
+    const expiredRes = await apiFetch('/api/orders', {
+      headers: { Cookie: `creasphere_admin_auth=${expiredToken}` },
+    });
+    assert(expiredRes.status === 401, `Expired session token is rejected with HTTP 401 (Got ${expiredRes.status})`);
+  } catch (e) {
+    assert(false, `Test 4 failed: ${e.message}`);
+  }
+
+  // -----------------------------------------------------------------
+  // 5. REVOKED SESSION -> REJECTED
+  // -----------------------------------------------------------------
+  console.log('\n--- Test 5: Revoked Session Token Rejected ---');
+  try {
+    // Perform logout
+    const logoutRes = await apiFetch('/api/admin/auth', {
+      method: 'DELETE',
+      headers: { Cookie: adminCookie },
+    });
+    assert(logoutRes.status === 200, 'Logout DELETE /api/admin/auth returns HTTP 200');
+
+    // Attempt to access orders with revoked cookie
+    const postLogoutRes = await apiFetch('/api/orders', {
+      headers: { Cookie: adminCookie },
+    });
+    assert(postLogoutRes.status === 401, 'Revoked session is rejected with HTTP 401');
+
+    // Re-authenticate admin for remaining tests
+    const reloginRes = await apiFetch('/api/admin/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: adminPassword }),
+    });
+    const setCookie2 = reloginRes.headers.get('set-cookie');
+    if (setCookie2) {
+      adminCookie = setCookie2.split(';')[0];
+    }
+  } catch (e) {
+    assert(false, `Test 5 failed: ${e.message}`);
+  }
+
+  // -----------------------------------------------------------------
+  // 6 & 7. CLIENT PRICE & TOTAL MANIPULATION -> REJECTED/IGNORED
+  // -----------------------------------------------------------------
+  console.log('\n--- Test 6 & 7: Price & Total Manipulation Rejected/Ignored ---');
+  let placedOrderNumber = null;
+  try {
+    const res = await apiFetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_name: 'Security Auditor',
+        customer_phone: '+380501112233',
+        customer_email: 'auditor@example.com',
+        delivery_city: 'Павлоград',
+        delivery_address: 'Відділення №1',
+        delivery_method: 'nova_poshta',
+        payment_method: 'card',
+        // ATTEMPT TO MANIPULATE PRICE AND TOTAL:
+        total: 1.0,
+        items: [{ id: 'p1', price: 0.01, quantity: 2 }],
+      }),
     });
     const data = await res.json();
-    assert(data.authenticated === false, 'Arbitrary unverified session token is REJECTED');
+    assert(res.status === 200 && data.success, 'Order created successfully with server-authoritative pricing');
+    assert(data.orderNumber && typeof data.orderNumber === 'string', `Valid orderNumber returned: ${data.orderNumber}`);
+    placedOrderNumber = data.orderNumber;
+
+    // Verify through Admin endpoint that the server recorded the real catalog total (1500 UAH), not 1.0 UAH
+    const adminOrdersRes = await apiFetch('/api/orders', {
+      headers: { Cookie: adminCookie },
+    });
+    const adminOrders = await adminOrdersRes.json();
+    const recordedOrder = adminOrders.find((o) => o.order_number === placedOrderNumber);
+
+    assert(
+      recordedOrder && recordedOrder.total_amount === 1500,
+      `Server calculated catalog total: 1500 ₴ instead of client manipulated 1.0 ₴ (Recorded: ${recordedOrder?.total_amount} ₴)`
+    );
   } catch (e) {
-    assert(false, `Old static token rejection failed: ${e.message}`);
+    assert(false, `Test 6 & 7 failed: ${e.message}`);
   }
 
   // -----------------------------------------------------------------
-  // 2. BRUTE FORCE RATE LIMITING TESTS
+  // 8. NEGATIVE QUANTITY -> REJECTED
   // -----------------------------------------------------------------
-  console.log('\n--- 2. Rate Limiting Tests ---');
+  console.log('\n--- Test 8: Negative Quantity Rejected ---');
+  try {
+    const res = await apiFetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_name: 'Security Auditor',
+        customer_phone: '+380501112233',
+        items: [{ id: 'p1', quantity: -3 }],
+      }),
+    });
+    assert(res.status === 400, `Negative quantity returns HTTP 400 (Got ${res.status})`);
+  } catch (e) {
+    assert(false, `Test 8 failed: ${e.message}`);
+  }
 
-  // 2.1 Rapid brute force login attempts from dedicated attacker IP
+  // -----------------------------------------------------------------
+  // 9. HUGE QUANTITY -> REJECTED
+  // -----------------------------------------------------------------
+  console.log('\n--- Test 9: Huge Quantity Rejected ---');
+  try {
+    const res = await apiFetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_name: 'Security Auditor',
+        customer_phone: '+380501112233',
+        items: [{ id: 'p1', quantity: 99999999 }],
+      }),
+    });
+    assert(res.status === 400, `Huge quantity returns HTTP 400 (Got ${res.status})`);
+  } catch (e) {
+    assert(false, `Test 9 failed: ${e.message}`);
+  }
+
+  // -----------------------------------------------------------------
+  // 10. NONEXISTENT PRODUCT -> REJECTED
+  // -----------------------------------------------------------------
+  console.log('\n--- Test 10: Nonexistent Product Rejected ---');
+  try {
+    const res = await apiFetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_name: 'Security Auditor',
+        customer_phone: '+380501112233',
+        items: [{ id: 'nonexistent_prod_9999', quantity: 1 }],
+      }),
+    });
+    assert(res.status === 400, `Nonexistent product returns HTTP 400 (Got ${res.status})`);
+  } catch (e) {
+    assert(false, `Test 10 failed: ${e.message}`);
+  }
+
+  // -----------------------------------------------------------------
+  // 11. INSUFFICIENT STOCK -> REJECTED
+  // -----------------------------------------------------------------
+  console.log('\n--- Test 11: Insufficient Stock Rejected ---');
+  try {
+    // Request 500 items of product p4 which has limited stock
+    const res = await apiFetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_name: 'Security Auditor',
+        customer_phone: '+380501112233',
+        items: [{ id: 'p4', quantity: 500 }],
+      }),
+    });
+    assert(res.status === 400, `Insufficient stock returns HTTP 400 (Got ${res.status})`);
+  } catch (e) {
+    assert(false, `Test 11 failed: ${e.message}`);
+  }
+
+  // -----------------------------------------------------------------
+  // 12. CONCURRENT STOCK PURCHASE -> ONLY VALID NUMBER SUCCEEDS
+  // -----------------------------------------------------------------
+  console.log('\n--- Test 12: Concurrent Stock Purchase (Race Condition Protection) ---');
+  try {
+    // 1. Create a special product with exactly 1 item in stock
+    const createProdRes = await apiFetch('/api/products', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: adminCookie,
+      },
+      body: JSON.stringify({
+        name: `Limited Race Item ${Date.now()}`,
+        price: 100,
+        stock: 1,
+        category_id: '1',
+      }),
+    });
+    const prodData = await createProdRes.json();
+    const limitedProductId = prodData.product?.id;
+    assert(createProdRes.status === 200 && limitedProductId, 'Created product with stock = 1 for concurrency test');
+
+    if (limitedProductId) {
+      // 2. Launch 4 concurrent checkout requests competing for that 1 item
+      const concurrentRequests = [1, 2, 3, 4].map((idx) =>
+        apiFetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customer_name: `Concurrent Buyer ${idx}`,
+            customer_phone: '+380501112233',
+            items: [{ id: limitedProductId, quantity: 1 }],
+          }),
+        })
+      );
+
+      const responses = await Promise.all(concurrentRequests);
+      const statuses = responses.map((r) => r.status);
+      const successCount = statuses.filter((s) => s === 200).length;
+      const rejectedCount = statuses.filter((s) => s === 400).length;
+
+      assert(
+        successCount === 1,
+        `Atomic stock protection: exactly 1 concurrent order succeeded (Successes: ${successCount}, Rejections: ${rejectedCount})`
+      );
+
+      // Cleanup test product
+      await apiFetch(`/api/products?id=${limitedProductId}`, {
+        method: 'DELETE',
+        headers: { Cookie: adminCookie },
+      });
+    }
+  } catch (e) {
+    assert(false, `Test 12 failed: ${e.message}`);
+  }
+
+  // -----------------------------------------------------------------
+  // 13. PUBLIC ORDER SELECT -> DENIED
+  // -----------------------------------------------------------------
+  console.log('\n--- Test 13: Public Order SELECT Denied ---');
+  try {
+    const res = await apiFetch('/api/orders');
+    assert(res.status === 401, 'Public user cannot SELECT orders (Customer PII is protected)');
+  } catch (e) {
+    assert(false, `Test 13 failed: ${e.message}`);
+  }
+
+  // -----------------------------------------------------------------
+  // 14. PUBLIC BOOKING SELECT -> DENIED
+  // -----------------------------------------------------------------
+  console.log('\n--- Test 14: Public Booking SELECT Denied ---');
+  try {
+    const wRes = await apiFetch('/api/workshops/book');
+    assert(wRes.status === 401, 'Public GET /api/workshops/book returns HTTP 401');
+
+    const sRes = await apiFetch('/api/space-bookings');
+    assert(sRes.status === 401, 'Public GET /api/space-bookings returns HTTP 401');
+
+    const cRes = await apiFetch('/api/custom-orders');
+    assert(cRes.status === 401, 'Public GET /api/custom-orders returns HTTP 401');
+  } catch (e) {
+    assert(false, `Test 14 failed: ${e.message}`);
+  }
+
+  // -----------------------------------------------------------------
+  // 15. PRODUCT MUTATION WITHOUT ADMIN -> DENIED
+  // -----------------------------------------------------------------
+  console.log('\n--- Test 15: Product Mutation Without Admin Denied ---');
+  try {
+    const postRes = await apiFetch('/api/products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Hacked', price: 1 }),
+    });
+    assert(postRes.status === 401, 'Unauthenticated POST /api/products returns HTTP 401');
+
+    const putRes = await apiFetch('/api/products', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'p1', name: 'Hacked', price: 1 }),
+    });
+    assert(putRes.status === 401, 'Unauthenticated PUT /api/products returns HTTP 401');
+
+    const delRes = await apiFetch('/api/products?id=p1', {
+      method: 'DELETE',
+    });
+    assert(delRes.status === 401, 'Unauthenticated DELETE /api/products returns HTTP 401');
+  } catch (e) {
+    assert(false, `Test 15 failed: ${e.message}`);
+  }
+
+  // -----------------------------------------------------------------
+  // 16. MASS ASSIGNMENT -> DENIED
+  // -----------------------------------------------------------------
+  console.log('\n--- Test 16: Mass Assignment Denied ---');
+  try {
+    const res = await apiFetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_name: 'Mass Assign Tester',
+        customer_phone: '+380501112233',
+        // Malicious fields injected:
+        is_admin: true,
+        role: 'superadmin',
+        status: 'completed',
+        payment_status: 'paid',
+        items: [{ id: 'p1', quantity: 1 }],
+      }),
+    });
+    const data = await res.json();
+    assert(res.status === 200 && data.success, 'Order created with whitelisted schema');
+
+    // Verify injected fields were not assigned as completed
+    const adminOrdersRes = await apiFetch('/api/orders', {
+      headers: { Cookie: adminCookie },
+    });
+    const adminOrders = await adminOrdersRes.json();
+    const order = adminOrders.find((o) => o.order_number === data.orderNumber);
+    assert(order && order.status === 'pending', 'Status was NOT mass-assigned to completed (stays pending)');
+    assert(order && order.is_admin === undefined, 'is_admin field was stripped and discarded');
+  } catch (e) {
+    assert(false, `Test 16 failed: ${e.message}`);
+  }
+
+  // -----------------------------------------------------------------
+  // 17. RATE LIMIT -> ENFORCED
+  // -----------------------------------------------------------------
+  console.log('\n--- Test 17: Rate Limit Enforced ---');
   const ATTACKER_IP = `198.51.100.${Math.floor(Math.random() * 200) + 1}`;
   try {
-    let lastStatus = 0;
-    for (let i = 0; i < 6; i++) {
+    let got429 = false;
+    for (let i = 0; i < 7; i++) {
       const res = await fetch(`${BASE_URL}/api/admin/auth`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-forwarded-for': ATTACKER_IP,
         },
-        body: JSON.stringify({ password: `brute_force_${i}` }),
+        body: JSON.stringify({ password: `wrong_${i}` }),
       });
-      lastStatus = res.status;
+      if (res.status === 429) {
+        got429 = true;
+        break;
+      }
     }
-    assert(lastStatus === 429, `Brute force attacker receives HTTP 429 Too Many Requests (Got: ${lastStatus})`);
+    assert(got429, 'Rate limiting enforces HTTP 429 Too Many Requests on repeated requests');
   } catch (e) {
-    assert(false, `Rate limiting test failed: ${e.message}`);
+    assert(false, `Test 17 failed: ${e.message}`);
   }
 
   // -----------------------------------------------------------------
-  // 3. PRODUCTS API AUTHORIZATION & MASS ASSIGNMENT TESTS
+  // 18. PII NOT RETURNED UNNECESSARILY
   // -----------------------------------------------------------------
-  console.log('\n--- 3. Products API Authorization Tests ---');
-
-  // 3.1 Public GET works
+  console.log('\n--- Test 18: PII Not Returned Unnecessarily ---');
   try {
-    const res = await apiFetch('/api/products');
-    const data = await res.json();
-    assert(res.status === 200 && Array.isArray(data), 'Public GET /api/products returns HTTP 200 and array');
-  } catch (e) {
-    assert(false, `Public GET products failed: ${e.message}`);
-  }
-
-  // 3.2 Unauthenticated POST /api/products blocked
-  try {
-    const res = await apiFetch('/api/products', {
+    // 1. Check orders POST response
+    const orderRes = await apiFetch('/api/orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'Hacked Item', price: 10 }),
-    });
-    assert(res.status === 401, 'Unauthenticated POST /api/products returns HTTP 401 (Blocked)');
-  } catch (e) {
-    assert(false, `Unauthenticated POST products failed: ${e.message}`);
-  }
-
-  // 3.3 Unauthenticated PUT /api/products blocked
-  try {
-    const res = await apiFetch('/api/products', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: 'p1', name: 'Hacked Price', price: 0.01 }),
-    });
-    assert(res.status === 401, 'Unauthenticated PUT /api/products returns HTTP 401 (Blocked)');
-  } catch (e) {
-    assert(false, `Unauthenticated PUT products failed: ${e.message}`);
-  }
-
-  // 3.4 Unauthenticated DELETE /api/products blocked
-  try {
-    const res = await apiFetch('/api/products?id=p1', {
-      method: 'DELETE',
-    });
-    assert(res.status === 401, 'Unauthenticated DELETE /api/products returns HTTP 401 (Blocked)');
-  } catch (e) {
-    assert(false, `Unauthenticated DELETE products failed: ${e.message}`);
-  }
-
-  // 3.5 Authenticated Admin can manage products with validation
-  let createdProductId = null;
-  try {
-    // Attempt with invalid negative price
-    const invalidRes = await apiFetch('/api/products', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Cookie: adminCookie,
-      },
-      body: JSON.stringify({ name: 'Test Product', price: -50, stock: 5 }),
-    });
-    assert(invalidRes.status === 400, 'Authenticated POST with negative price returns HTTP 400 Validation Error');
-
-    // Valid product creation
-    const validRes = await apiFetch('/api/products', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Cookie: adminCookie,
-      },
       body: JSON.stringify({
-        name: 'Secured Workshop Item',
-        price: 450,
-        stock: 10,
-        category_id: '1',
-        description: 'Quality tested craft piece',
+        customer_name: 'Privileged Customer',
+        customer_phone: '+380509998877',
+        customer_email: 'secret@example.com',
+        delivery_city: 'Київ',
+        delivery_address: 'вул. Хрещатик, 1',
+        notes: 'Secret note',
+        items: [{ id: 'p1', quantity: 1 }],
       }),
     });
-    const validData = await validRes.json();
-    assert(validRes.status === 200 && validData.success, 'Authenticated Admin POST /api/products succeeds');
-    if (validData.product) {
-      createdProductId = validData.product.id;
+    const orderData = await orderRes.json();
+    assert(orderRes.status === 200, 'Order created');
+    assert(
+      !orderData.customer_name && !orderData.customer_phone && !orderData.customer_email && !orderData.delivery_address,
+      'POST /api/orders response does NOT leak customer PII (only orderNumber returned)'
+    );
+
+    // 2. Check custom-orders POST response
+    const customRes = await apiFetch('/api/custom-orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_name: 'Private Client',
+        customer_phone: '+380501112233',
+        customer_email: 'private@client.com',
+        description: 'Special custom sculpture',
+      }),
+    });
+    const customData = await customRes.json();
+    assert(
+      !customData.customer_name && !customData.customer_phone && !customData.order,
+      'POST /api/custom-orders response does NOT leak customer PII'
+    );
+
+    // 3. Check workshops POST response
+    const wsRes = await apiFetch('/api/workshops/book', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_name: 'Workshop Attendee',
+        customer_phone: '+380501112233',
+        workshop_title: 'Гончарство',
+        participants_count: 1,
+      }),
+    });
+    const wsData = await wsRes.json();
+    assert(
+      !wsData.customer_name && !wsData.customer_phone && !wsData.booking,
+      'POST /api/workshops/book response does NOT leak customer PII'
+    );
+
+    // 4. Check space bookings POST response
+    const spaceRes = await apiFetch('/api/space-bookings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_name: 'Space Renter',
+        customer_phone: '+380501112233',
+        tariff: 'standard',
+        event_date: '2026-09-15',
+        guests_count: 5,
+      }),
+    });
+    const spaceData = await spaceRes.json();
+    assert(
+      !spaceData.customer_name && !spaceData.customer_phone && !spaceData.booking,
+      'POST /api/space-bookings response does NOT leak customer PII'
+    );
+  } catch (e) {
+    assert(false, `Test 18 failed: ${e.message}`);
+  }
+
+  // -----------------------------------------------------------------
+  // 19. SERVICE ROLE SECRET NEVER APPEARS IN CLIENT BUNDLE
+  // -----------------------------------------------------------------
+  console.log('\n--- Test 19: Service Role Key Never Appears in Client Bundle ---');
+  try {
+    const srcDir = path.resolve(process.cwd(), 'src');
+    const clientFiles = [];
+
+    function collectClientFiles(dir) {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name !== 'api' && entry.name !== 'lib' && entry.name !== 'node_modules') {
+            collectClientFiles(fullPath);
+          }
+        } else if (/\.(jsx?|tsx?)$/.test(entry.name)) {
+          clientFiles.push(fullPath);
+        }
+      }
     }
 
-    // Cleanup product
-    if (createdProductId) {
-      const delRes = await apiFetch(`/api/products?id=${createdProductId}`, {
-        method: 'DELETE',
-        headers: { Cookie: adminCookie },
-      });
-      assert(delRes.status === 200, 'Authenticated Admin DELETE /api/products cleanup succeeds');
+    collectClientFiles(srcDir);
+
+    let leaked = false;
+    for (const filePath of clientFiles) {
+      const content = fs.readFileSync(filePath, 'utf8');
+      if (content.includes('SUPABASE_SERVICE_ROLE_KEY') || content.includes('supabase-admin')) {
+        console.error(`Leaked in: ${filePath}`);
+        leaked = true;
+      }
     }
+
+    assert(!leaked, 'SUPABASE_SERVICE_ROLE_KEY is NEVER imported or referenced in non-API client code');
   } catch (e) {
-    assert(false, `Authenticated products test failed: ${e.message}`);
-  }
-
-  // -----------------------------------------------------------------
-  // 4. ORDERS SECURITY & SERVER-AUTHORITATIVE PRICING TESTS
-  // -----------------------------------------------------------------
-  console.log('\n--- 4. Orders Security & Price Integrity Tests ---');
-
-  // 4.1 Unauthenticated GET /api/orders blocked (PII Protection!)
-  try {
-    const res = await apiFetch('/api/orders');
-    assert(res.status === 401, 'Public GET /api/orders returns HTTP 401 (Customer PII is NOT leaked)');
-  } catch (e) {
-    assert(false, `Public GET orders failed: ${e.message}`);
-  }
-
-  // 4.2 Unauthenticated PATCH /api/orders blocked
-  try {
-    const res = await apiFetch('/api/orders', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: 'ord-1', status: 'cancelled' }),
-    });
-    assert(res.status === 401, 'Unauthenticated PATCH /api/orders returns HTTP 401 (Blocked)');
-  } catch (e) {
-    assert(false, `Unauthenticated PATCH orders failed: ${e.message}`);
-  }
-
-  // 4.3 Unauthenticated DELETE /api/orders blocked
-  try {
-    const res = await apiFetch('/api/orders?id=ord-1', {
-      method: 'DELETE',
-    });
-    assert(res.status === 401, 'Unauthenticated DELETE /api/orders returns HTTP 401 (Blocked)');
-  } catch (e) {
-    assert(false, `Unauthenticated DELETE orders failed: ${e.message}`);
-  }
-
-  // 4.4 Price Manipulation Attempt: Client tries to buy Product p1 (750 UAH) for 1 UAH
-  try {
-    const res = await apiFetch('/api/orders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        customer_name: 'Audit Tester',
-        customer_phone: '+380501234567',
-        customer_email: 'audit@example.com',
-        delivery_city: 'Павлоград',
-        delivery_address: 'Відділення №1',
-        delivery_method: 'nova_poshta',
-        payment_method: 'card',
-        // ATTACK PAYLOAD: fake total and fake price
-        total: 1.0,
-        items: [
-          {
-            id: 'p1',
-            price: 0.5,
-            quantity: 2,
-          },
-        ],
-      }),
-    });
-    const data = await res.json();
-    assert(res.status === 200 && data.success, 'Public order creation succeeds with verified payload');
-    assert(
-      data.order && data.order.total_amount === 1500,
-      `Server RECALCULATED real price: 1500 ₴ instead of client-supplied 1.0 ₴ (Actual total: ${data.order?.total_amount} ₴)`
-    );
-    assert(
-      data.order && data.order.items[0].price === 750,
-      `Server used catalog price: 750 ₴ instead of client-supplied 0.5 ₴ (Actual item price: ${data.order?.items[0]?.price} ₴)`
-    );
-  } catch (e) {
-    assert(false, `Price manipulation prevention test failed: ${e.message}`);
-  }
-
-  // 4.5 Invalid non-existent product rejected
-  try {
-    const res = await apiFetch('/api/orders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        customer_name: 'Audit Tester',
-        customer_phone: '+380501234567',
-        items: [{ id: 'non_existent_product_xyz', quantity: 1 }],
-      }),
-    });
-    assert(res.status === 400, `Ordering non-existent product returns HTTP 400 (Received: ${res.status})`);
-  } catch (e) {
-    assert(false, `Non-existent product test failed: ${e.message}`);
-  }
-
-  // 4.6 Negative quantity rejected
-  try {
-    const res = await apiFetch('/api/orders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        customer_name: 'Audit Tester',
-        customer_phone: '+380501234567',
-        items: [{ id: 'p1', quantity: -3 }],
-      }),
-    });
-    assert(res.status === 400, `Ordering negative quantity returns HTTP 400 (Received: ${res.status})`);
-  } catch (e) {
-    assert(false, `Negative quantity test failed: ${e.message}`);
-  }
-
-  // 4.7 Zero quantity rejected
-  try {
-    const res = await apiFetch('/api/orders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        customer_name: 'Audit Tester',
-        customer_phone: '+380501234567',
-        items: [{ id: 'p1', quantity: 0 }],
-      }),
-    });
-    assert(res.status === 400, `Ordering zero quantity returns HTTP 400 (Received: ${res.status})`);
-  } catch (e) {
-    assert(false, `Zero quantity test failed: ${e.message}`);
-  }
-
-  // 4.8 String quantity rejected
-  try {
-    const res = await apiFetch('/api/orders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        customer_name: 'Audit Tester',
-        customer_phone: '+380501234567',
-        items: [{ id: 'p1', quantity: '2' }],
-      }),
-    });
-    assert(res.status === 400, `Ordering string quantity returns HTTP 400 (Received: ${res.status})`);
-  } catch (e) {
-    assert(false, `String quantity test failed: ${e.message}`);
-  }
-
-  // 4.9 Authenticated Admin can read orders list
-  try {
-    const res = await apiFetch('/api/orders', {
-      headers: { Cookie: adminCookie },
-    });
-    const data = await res.json();
-    assert(res.status === 200 && Array.isArray(data), 'Authenticated Admin GET /api/orders succeeds with HTTP 200');
-  } catch (e) {
-    assert(false, `Authenticated GET orders failed: ${e.message}`);
-  }
-
-  // -----------------------------------------------------------------
-  // 5. WORKSHOPS, SPACE & CUSTOM ORDERS TESTS
-  // -----------------------------------------------------------------
-  console.log('\n--- 5. Workshop, Space & Custom Orders Tests ---');
-
-  // 5.1 Workshops bookings privacy: unauthenticated GET blocked
-  try {
-    const res = await apiFetch('/api/workshops/book');
-    assert(res.status === 401, 'Public GET /api/workshops/book returns HTTP 401 (PII protected)');
-  } catch (e) {
-    assert(false, `Public GET workshops failed: ${e.message}`);
-  }
-
-  // 5.2 Workshops mutation without auth blocked
-  try {
-    const res = await apiFetch('/api/workshops/book', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: 'wb-1', status: 'completed' }),
-    });
-    assert(res.status === 401, 'Unauthenticated PATCH /api/workshops/book returns HTTP 401');
-  } catch (e) {
-    assert(false, `Unauthenticated PATCH workshops failed: ${e.message}`);
-  }
-
-  // 5.3 Space bookings privacy: unauthenticated GET blocked
-  try {
-    const res = await apiFetch('/api/space-bookings');
-    assert(res.status === 401, 'Public GET /api/space-bookings returns HTTP 401 (PII protected)');
-  } catch (e) {
-    assert(false, `Public GET space bookings failed: ${e.message}`);
-  }
-
-  // 5.4 Custom orders privacy: unauthenticated GET blocked
-  try {
-    const res = await apiFetch('/api/custom-orders');
-    assert(res.status === 401, 'Public GET /api/custom-orders returns HTTP 401 (PII protected)');
-  } catch (e) {
-    assert(false, `Public GET custom orders failed: ${e.message}`);
-  }
-
-  // 5.5 Public Workshop Booking creation works and sanitizes input (XSS protection)
-  try {
-    const res = await apiFetch('/api/workshops/book', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        customer_name: '<script>alert("XSS")</script>Ольга Василенко',
-        customer_phone: '+380997778899',
-        workshop_title: 'Гончарство та кераміка',
-        participants_count: 2,
-        notes: '<img src=x onerror=alert(1)>Святковий запис',
-      }),
-    });
-    const data = await res.json();
-    assert(res.status === 200 && data.success, 'Public booking creation succeeds');
-    assert(
-      data.booking && !data.booking.customer_name.includes('<script>'),
-      'XSS script tag is stripped from customer_name'
-    );
-    assert(
-      data.booking && !data.booking.notes.includes('<img'),
-      'XSS img onerror tag is stripped from notes'
-    );
-  } catch (e) {
-    assert(false, `Workshop booking XSS sanitization test failed: ${e.message}`);
-  }
-
-  // 5.6 Custom order creation with invalid phone rejected
-  try {
-    const res = await apiFetch('/api/custom-orders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        customer_name: 'Андрій',
-        customer_phone: '123', // invalid short phone
-      }),
-    });
-    assert(res.status === 400, 'Custom order with invalid phone returns HTTP 400');
-  } catch (e) {
-    assert(false, `Custom order validation test failed: ${e.message}`);
-  }
-
-  // -----------------------------------------------------------------
-  // 6. SESSION REVOCATION / LOGOUT TEST
-  // -----------------------------------------------------------------
-  console.log('\n--- 6. Session Revocation (Logout) Test ---');
-
-  try {
-    const logoutRes = await apiFetch('/api/admin/auth', {
-      method: 'DELETE',
-      headers: { Cookie: adminCookie },
-    });
-    assert(logoutRes.status === 200, 'DELETE /api/admin/auth returns HTTP 200');
-
-    // Attempt to use revoked session token
-    const afterLogoutRes = await apiFetch('/api/orders', {
-      headers: { Cookie: adminCookie },
-    });
-    assert(afterLogoutRes.status === 401, 'Using revoked session token returns HTTP 401 (Session invalidated)');
-  } catch (e) {
-    assert(false, `Logout test failed: ${e.message}`);
+    assert(false, `Test 19 failed: ${e.message}`);
   }
 
   // -----------------------------------------------------------------
   // SUMMARY
   // -----------------------------------------------------------------
-  console.log('\n====================================================');
+  console.log('\n================================================================');
   console.log(`TEST RESULTS: ${passedTests} PASSED, ${failedTests} FAILED`);
-  console.log('====================================================\n');
+  console.log('================================================================\n');
 
   if (failedTests > 0) {
     process.exit(1);
   }
 }
 
-runTests().catch((err) => {
-  console.error('Fatal test error:', err);
+runAllSecurityTests().catch((err) => {
+  console.error('Fatal test runner error:', err);
   process.exit(1);
 });

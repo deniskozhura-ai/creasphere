@@ -1,10 +1,10 @@
 import crypto from 'crypto';
 import { NextResponse } from 'next/server';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabaseAdmin, isSupabaseAdminConfigured } from '@/lib/supabase-admin';
 import { getOrders, addOrder, updateOrderStatus, deleteOrder } from '@/lib/orders-store';
-import { getProducts } from '@/lib/products-store';
+import { getProducts, decrementStockAtomic } from '@/lib/products-store';
 import { requireAdmin } from '@/lib/auth';
-import { applyRateLimit } from '@/lib/rate-limit';
+import { applyRateLimit, getClientIp } from '@/lib/rate-limit';
 import { validateOrderPayload, sanitizeString } from '@/lib/validation';
 
 export async function GET(request) {
@@ -13,17 +13,17 @@ export async function GET(request) {
     const authError = await requireAdmin(request);
     if (authError) return authError;
 
-    // 2. Query Supabase as source of truth if configured
-    if (isSupabaseConfigured) {
-      const { data: dbOrders, error } = await supabase
+    // 2. Query Supabase via Server Role client if configured
+    if (isSupabaseAdminConfigured) {
+      const { data: dbOrders, error } = await supabaseAdmin
         .from('orders')
         .select('*, order_items(*)')
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Supabase get orders error:', error);
+        console.error('Supabase get orders error:', error.message);
         return NextResponse.json(
-          { error: 'Помилка завантаження замовлень з бази даних' },
+          { error: 'Помилка завантаження замовлень' },
           { status: 500 }
         );
       }
@@ -34,45 +34,85 @@ export async function GET(request) {
     const orders = getOrders();
     return NextResponse.json(orders);
   } catch (err) {
-    console.error('Get orders error:', err);
+    console.error('Get orders error:', err.message);
     return NextResponse.json({ error: 'Помилка завантаження замовлень' }, { status: 500 });
   }
 }
 
 export async function POST(request) {
   try {
-    // 1. Rate limiting: 20 orders per 10 minutes per IP
-    const rateLimitResponse = applyRateLimit(request, 'create-order', 20, 10 * 60 * 1000);
+    // 1. Rate limiting: 20 orders per 10 minutes per IP + endpoint
+    const ip = getClientIp(request);
+    const rateLimitResponse = await applyRateLimit(request, `create-order:${ip}`, 20, 10 * 60 * 1000);
     if (rateLimitResponse) {
       return rateLimitResponse;
     }
 
     const body = await request.json();
 
-    // 2. Validate input schema & types (whitelists fields, strips client price/total)
+    // 2. Validate input schema & types (strict allowlist, strips client-submitted price/total)
     const { isValid, errors, sanitized } = validateOrderPayload(body);
     if (!isValid) {
       return NextResponse.json({ error: errors[0], errors }, { status: 400 });
     }
 
-    // 3. SERVER-AUTHORITATIVE PRICE CALCULATION & STOCK VERIFICATION
-    let allProducts = [];
-    if (isSupabaseConfigured) {
-      const { data: dbProducts, error: prodErr } = await supabase
-        .from('products')
-        .select('*');
-      if (prodErr || !dbProducts) {
-        console.error('Supabase fetch products error:', prodErr);
+    // 3. Cryptographically secure Order Number (e.g. CS-2026-9F4K2M7Q)
+    const year = new Date().getFullYear();
+    const randomHex = crypto.randomBytes(4).toString('hex').toUpperCase();
+    const orderNumber = `CS-${year}-${randomHex}`;
+
+    // 4. Supabase Atomic Order Creation via stored procedure
+    if (isSupabaseAdminConfigured) {
+      try {
+        const { data: rpcResult, error: rpcError } = await supabaseAdmin.rpc('create_order_atomic', {
+          p_order_number: orderNumber,
+          p_customer_name: sanitized.customer_name,
+          p_customer_phone: sanitized.customer_phone,
+          p_customer_email: sanitized.customer_email || '',
+          p_delivery_address: `${sanitized.delivery_city || ''}, ${sanitized.delivery_address || ''}`.trim(),
+          p_delivery_method: sanitized.delivery_method,
+          p_payment_method: sanitized.payment_method,
+          p_notes: sanitized.notes || '',
+          p_items: sanitized.items.map((i) => ({ id: i.id, quantity: i.quantity })),
+        });
+
+        if (rpcError) {
+          console.error('Supabase create_order_atomic error:', rpcError.message);
+          if (rpcError.message.includes('INSUFFICIENT_STOCK')) {
+            return NextResponse.json(
+              { error: 'Один або декілька товарів відсутні у потрібній кількості на складі.' },
+              { status: 400 }
+            );
+          }
+          if (rpcError.message.includes('PRODUCT_NOT_FOUND')) {
+            return NextResponse.json(
+              { error: 'Один із обраних товарів не знайдено в каталозі.' },
+              { status: 400 }
+            );
+          }
+          return NextResponse.json(
+            { error: 'Помилка збереження замовлення в базі даних.' },
+            { status: 503 }
+          );
+        }
+
+        // Return minimal confirmation without leaking PII
+        return NextResponse.json({
+          success: true,
+          orderNumber,
+          message: 'Замовлення успішно створено!',
+        });
+      } catch (dbErr) {
+        console.error('Database atomic order exception:', dbErr.message);
         return NextResponse.json(
-          { error: 'Помилка доступу до каталогу товарів' },
+          { error: 'Помилка обробки замовлення. Спробуйте пізніше.' },
           { status: 503 }
         );
       }
-      allProducts = dbProducts;
-    } else {
-      allProducts = getProducts();
     }
 
+    // 5. Local Dev / Offline Fallback with Atomic Stock Verification
+    const allProducts = getProducts();
     const verifiedItems = [];
     let calculatedTotal = 0;
 
@@ -125,8 +165,13 @@ export async function POST(request) {
 
     calculatedTotal = Math.round(calculatedTotal * 100) / 100;
 
-    // 4. Secure cryptographically random Order Number
-    const orderNumber = `CS-${crypto.randomInt(100000, 999999)}`;
+    // Atomically decrement stock in memory/persistent store
+    try {
+      decrementStockAtomic(sanitized.items);
+    } catch (stockErr) {
+      return NextResponse.json({ error: stockErr.message }, { status: 400 });
+    }
+
     const now = new Date();
     const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
@@ -147,73 +192,16 @@ export async function POST(request) {
       created_at: formattedDate,
     };
 
-    // 5. Save to Supabase as source of truth if configured
-    if (isSupabaseConfigured) {
-      try {
-        const { data: dbOrder, error: orderError } = await supabase
-          .from('orders')
-          .insert([
-            {
-              order_number: orderNumber,
-              customer_name: newOrder.customer_name,
-              customer_phone: newOrder.customer_phone,
-              customer_email: newOrder.customer_email,
-              delivery_address: `${sanitized.delivery_city || ''}, ${sanitized.delivery_address || ''}`.trim(),
-              delivery_method: newOrder.delivery_method,
-              payment_method: newOrder.payment_method,
-              total_amount: newOrder.total_amount,
-              notes: newOrder.notes,
-              status: 'pending',
-            },
-          ])
-          .select()
-          .single();
+    addOrder(newOrder);
 
-        if (orderError || !dbOrder) {
-          console.error('Supabase order insert error:', orderError);
-          return NextResponse.json(
-            { error: 'Помилка збереження замовлення в базі даних. Спробуйте пізніше.' },
-            { status: 503 }
-          );
-        }
-
-        const orderItems = newOrder.items.map((item) => ({
-          order_id: dbOrder.id,
-          product_id: item.id.includes('-') && item.id.length > 20 ? item.id : null,
-          product_name: item.name,
-          quantity: item.quantity,
-          price: item.price,
-          total: item.total,
-        }));
-
-        const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
-        if (itemsError) {
-          console.error('Supabase order items insert error:', itemsError);
-          return NextResponse.json(
-            { error: 'Помилка збереження позицій замовлення в базі даних.' },
-            { status: 503 }
-          );
-        }
-      } catch (dbErr) {
-        console.error('Database save exception:', dbErr);
-        return NextResponse.json(
-          { error: 'Помилка з’єднання з базою даних. Спробуйте пізніше.' },
-          { status: 503 }
-        );
-      }
-    } else {
-      // Local development fallback
-      addOrder(newOrder);
-    }
-
+    // Return strictly minimal confirmation without customer PII
     return NextResponse.json({
       success: true,
       orderNumber,
-      order: newOrder,
       message: 'Замовлення успішно створено!',
     });
   } catch (err) {
-    console.error('Order creation error:', err);
+    console.error('Order creation error:', err.message);
     return NextResponse.json(
       { error: 'Помилка обробки замовлення. Спробуйте пізніше.' },
       { status: 500 }
@@ -236,14 +224,14 @@ export async function PATCH(request) {
       return NextResponse.json({ error: 'Недійсні параметри зміни статусу' }, { status: 400 });
     }
 
-    if (isSupabaseConfigured) {
-      const { error } = await supabase
+    if (isSupabaseAdminConfigured) {
+      const { error } = await supabaseAdmin
         .from('orders')
         .update({ status })
         .or(`id.eq.${id},order_number.eq.${id}`);
 
       if (error) {
-        console.error('Supabase order status update error:', error);
+        console.error('Supabase order status update error:', error.message);
         return NextResponse.json({ error: 'Помилка оновлення статусу в базі даних' }, { status: 503 });
       }
       return NextResponse.json({ success: true, id, status });
@@ -252,7 +240,7 @@ export async function PATCH(request) {
     const updated = updateOrderStatus(id, status);
     return NextResponse.json({ success: true, order: updated });
   } catch (err) {
-    console.error('Order patch error:', err);
+    console.error('Order patch error:', err.message);
     return NextResponse.json({ error: 'Помилка оновлення замовлення' }, { status: 500 });
   }
 }
@@ -270,14 +258,14 @@ export async function DELETE(request) {
       return NextResponse.json({ error: 'ID замовлення обов’язковий' }, { status: 400 });
     }
 
-    if (isSupabaseConfigured) {
-      const { error } = await supabase
+    if (isSupabaseAdminConfigured) {
+      const { error } = await supabaseAdmin
         .from('orders')
         .delete()
         .or(`id.eq.${id},order_number.eq.${id}`);
 
       if (error) {
-        console.error('Supabase order delete error:', error);
+        console.error('Supabase order delete error:', error.message);
         return NextResponse.json({ error: 'Помилка видалення замовлення з бази даних' }, { status: 503 });
       }
       return NextResponse.json({ success: true });
@@ -286,7 +274,7 @@ export async function DELETE(request) {
     const ok = deleteOrder(id);
     return NextResponse.json({ success: ok });
   } catch (err) {
-    console.error('Order delete error:', err);
+    console.error('Order delete error:', err.message);
     return NextResponse.json({ error: 'Помилка видалення' }, { status: 500 });
   }
 }

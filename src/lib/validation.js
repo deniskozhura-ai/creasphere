@@ -356,3 +356,6 @@ export function validateSpacePayload(data) {
     },
   };
 }
+
+export const validateWorkshopBookingPayload = validateWorkshopPayload;
+export const validateSpaceBookingPayload = validateSpacePayload;
