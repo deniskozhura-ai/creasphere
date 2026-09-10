@@ -255,7 +255,7 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 DECLARE
-  v_now BIGINT := (pg_catalog.extract(epoch from pg_catalog.now()) * 1000)::BIGINT;
+  v_now BIGINT := (pg_catalog.date_part('epoch', pg_catalog.now()) * 1000)::BIGINT;
   v_record RECORD;
 BEGIN
   SELECT count, reset_at INTO v_record
