@@ -124,8 +124,10 @@ const STATIC_WORKSHOPS = [
   },
 ];
 
+export const dynamic = 'force-dynamic';
+
 export default async function WorkshopsPage() {
-  let workshopTypes = STATIC_WORKSHOPS;
+  let workshopTypes = [];
 
   if (isSupabaseConfigured) {
     try {
@@ -135,7 +137,7 @@ export default async function WorkshopsPage() {
         .eq('status', 'active')
         .order('created_at', { ascending: true });
 
-      if (!error && Array.isArray(data) && data.length > 0) {
+      if (!error && Array.isArray(data)) {
         workshopTypes = data.map((w) => ({
           id: w.id,
           title: w.title,
@@ -154,8 +156,13 @@ export default async function WorkshopsPage() {
         }));
       }
     } catch (err) {
-      console.warn('Failed to load workshops from Supabase, using default schedule:', err);
+      console.warn('Failed to load workshops from Supabase:', err);
     }
+  }
+
+  // Fallback to static demo workshops ONLY if Supabase is completely unconfigured
+  if (workshopTypes.length === 0 && !isSupabaseConfigured) {
+    workshopTypes = STATIC_WORKSHOPS;
   }
 
   return (

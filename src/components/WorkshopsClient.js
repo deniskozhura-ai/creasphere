@@ -1,10 +1,37 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import WorkshopBookingForm from './WorkshopBookingForm';
 
-export default function WorkshopsClient({ workshopTypes }) {
+export default function WorkshopsClient({ workshopTypes: initialTypes = [] }) {
+  const [items, setItems] = useState(initialTypes || []);
   const [selectedWorkshop, setSelectedWorkshop] = useState('');
+
+  useEffect(() => {
+    fetch('/api/workshops')
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setItems(data.map((w) => ({
+            id: w.id,
+            title: w.title,
+            desc: w.description || w.desc || '',
+            duration: w.duration || '',
+            price: w.price || '',
+            difficulty: w.difficulty || 'Початковий',
+            difficultyLevel: w.difficulty_level || w.difficultyLevel || 'beginner',
+            max_participants: w.max_participants || 10,
+            registered_count: w.registered_count || 0,
+            available_spots: w.available_spots || 10,
+            age: w.age || '',
+            image: w.image || '/workshop1.jpg',
+            badge: w.badge || '',
+            scheduled_dates: Array.isArray(w.scheduled_dates) ? w.scheduled_dates : [],
+          })));
+        }
+      })
+      .catch((e) => console.warn('Failed to refresh workshops client-side:', e));
+  }, []);
 
   const handleSelectWorkshop = (title) => {
     setSelectedWorkshop(title);
@@ -28,12 +55,13 @@ export default function WorkshopsClient({ workshopTypes }) {
             </p>
           </div>
 
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(330px, 1fr))',
-            gap: 32,
-          }}>
-            {workshopTypes.map((item, i) => (
+          {items.length > 0 ? (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(330px, 1fr))',
+              gap: 32,
+            }}>
+              {items.map((item, i) => (
               <article
                 key={i}
                 style={{
@@ -168,6 +196,13 @@ export default function WorkshopsClient({ workshopTypes }) {
               </article>
             ))}
           </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '48px 16px', color: 'var(--text-muted)' }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>🎨</div>
+              <h3 style={{ fontSize: 20, marginBottom: 8, color: 'var(--text)' }}>Наразі майстер-класів немає</h3>
+              <p>Слідкуйте за оновленнями розкладу або зв’яжіться з нами для індивідуального запису.</p>
+            </div>
+          )}
         </div>
       </section>
 
@@ -231,7 +266,7 @@ export default function WorkshopsClient({ workshopTypes }) {
       <div id="book-section">
         <WorkshopBookingForm
           initialWorkshop={selectedWorkshop}
-          workshopTypes={workshopTypes}
+          workshopTypes={items}
         />
       </div>
     </>

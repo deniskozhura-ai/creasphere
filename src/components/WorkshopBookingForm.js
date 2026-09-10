@@ -28,21 +28,30 @@ export default function WorkshopBookingForm({
   useEffect(() => {
     if (initialWorkshop) {
       setFormData((prev) => ({ ...prev, workshop: initialWorkshop }));
+    } else if (Array.isArray(workshopTypes) && workshopTypes.length > 0) {
+      setFormData((prev) => {
+        if (!prev.workshop || !workshopTypes.some((w) => w.title === prev.workshop)) {
+          return { ...prev, workshop: workshopTypes[0].title };
+        }
+        return prev;
+      });
     }
-  }, [initialWorkshop]);
+  }, [initialWorkshop, workshopTypes]);
 
   const currentWorkshopObj = workshopTypes?.find((w) => w.title === formData.workshop);
   const availableDates = currentWorkshopObj?.scheduled_dates || [];
 
-  const workshopsList = [
-    'Гончарство та кераміка',
-    'Мозаїка та вітражний арт',
-    'Ароматичні соєві свічки',
-    'Живопис та текстурний арт',
-    'Дитячі свята та дні народження',
-    'Корпоративи та тімбілдинги',
-    'Індивідуальний майстер-клас',
-  ];
+  const workshopsList = Array.isArray(workshopTypes) && workshopTypes.length > 0
+    ? [...workshopTypes.map((w) => w.title), 'Індивідуальний майстер-клас']
+    : [
+        'Гончарство та кераміка',
+        'Мозаїка та вітражний арт',
+        'Ароматичні соєві свічки',
+        'Живопис та текстурний арт',
+        'Дитячі свята та дні народження',
+        'Корпоративи та тімбілдинги',
+        'Індивідуальний майстер-клас',
+      ];
 
   const handleChange = (e) => {
     const { name, value } = e.target;
