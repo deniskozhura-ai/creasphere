@@ -78,7 +78,7 @@ export default async function CategoryPage({ params, searchParams }) {
         const res = await supabase
           .from('products')
           .select('*, categories(name, slug)', { count: 'exact' })
-          .eq('status', 'active')
+          .in('status', ['active', 'in_stock', 'pre_order'])
           .in('category_id', categoryIds)
           .order(sortConfig.column, { ascending: sortConfig.ascending })
           .range(offset, offset + PER_PAGE - 1);

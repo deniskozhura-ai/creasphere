@@ -95,7 +95,7 @@ export async function POST(request) {
         material: newProduct.material,
         dimensions: newProduct.dimensions,
         images: newProduct.images,
-        status: newProduct.status,
+        status: (newProduct.status === 'in_stock' || !newProduct.status) ? 'active' : newProduct.status,
       };
       if (isCatUuid) {
         insertData.category_id = sanitized.category_id;
@@ -176,7 +176,7 @@ export async function PUT(request) {
         name: sanitized.name,
         price: sanitized.price,
         stock: sanitized.stock,
-        status: sanitized.status,
+        status: (sanitized.status === 'in_stock' || !sanitized.status) ? 'active' : sanitized.status,
         material: sanitized.material,
         dimensions: sanitized.dimensions,
         description: sanitized.description,

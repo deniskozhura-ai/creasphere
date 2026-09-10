@@ -37,7 +37,7 @@ export default async function ShopPage({ searchParams }) {
       let query = supabase
         .from('products')
         .select('*, categories(name, slug)', { count: 'exact' })
-        .eq('status', 'active');
+        .in('status', ['active', 'in_stock', 'pre_order']);
 
       if (category) {
         const { data: cat } = await supabase

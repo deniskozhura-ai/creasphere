@@ -94,7 +94,7 @@ export default function AdminProductsManager({ initialProducts }) {
     category_name: 'Подарунки ручної роботи',
     price: '',
     stock: '5',
-    status: 'in_stock',
+    status: 'active',
     production_time: 'В наявності',
     material: '',
     dimensions: '',
@@ -162,7 +162,7 @@ export default function AdminProductsManager({ initialProducts }) {
       category_name: item.category_name || matchedCat?.name || categories[0]?.name || 'Подарунки ручної роботи',
       price: item.price !== undefined ? String(item.price) : '',
       stock: item.stock !== undefined ? String(item.stock) : '5',
-      status: item.status || 'in_stock',
+      status: item.status === 'in_stock' ? 'active' : (item.status || 'active'),
       production_time: item.production_time || 'В наявності',
       material: item.material || '',
       dimensions: item.dimensions || '',
@@ -709,7 +709,7 @@ export default function AdminProductsManager({ initialProducts }) {
                   Статус наявності
                 </label>
                 <select
-                  value={form.status}
+                  value={form.status === 'in_stock' ? 'active' : (form.status || 'active')}
                   onChange={(e) =>
                     setForm({
                       ...form,
@@ -719,7 +719,7 @@ export default function AdminProductsManager({ initialProducts }) {
                   }
                   style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid #ccc', fontSize: 14, background: '#fff' }}
                 >
-                  <option value="in_stock">В наявності</option>
+                  <option value="active">В наявності</option>
                   <option value="pre_order">Під замовлення</option>
                 </select>
               </div>
