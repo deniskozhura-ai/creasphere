@@ -384,9 +384,8 @@ export default function AdminProductsManager({ initialProducts }) {
                       <div>
                         <div style={{ fontWeight: 600 }}>{item.name}</div>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                          {item.brand || 'CreaSphere'}
                           {item.images?.length > 1 && (
-                            <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--primary, #606c38)' }}>
+                            <span style={{ fontSize: 11, color: 'var(--primary, #606c38)' }}>
                               📷 {item.images.length} фото
                             </span>
                           )}

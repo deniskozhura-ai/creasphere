@@ -145,12 +145,6 @@ export default function ProductDetailClient({ product: initialProduct, slug }) {
           <h3 className="product-info__specs-title">Характеристики</h3>
           <table className="product-info__specs-table">
             <tbody>
-              {product.brand && (
-                <tr>
-                  <td>Бренд / Майстер</td>
-                  <td>{product.brand}</td>
-                </tr>
-              )}
               {product.material && (
                 <tr>
                   <td>Матеріал</td>

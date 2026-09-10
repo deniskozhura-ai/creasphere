@@ -23,10 +23,8 @@ export default async function ShopPage({ searchParams }) {
   const page = parseInt(params?.page) || 1;
   const sort = params?.sort || 'created_at';
   const category = params?.category || '';
-  const brand = params?.brand || '';
   const minPrice = params?.min_price ? parseFloat(params.min_price) : null;
   const maxPrice = params?.max_price ? parseFloat(params.max_price) : null;
-  const inStock = params?.in_stock === '1';
 
   const offset = (page - 1) * PER_PAGE;
 
@@ -50,10 +48,8 @@ export default async function ShopPage({ searchParams }) {
         if (cat) query = query.eq('category_id', cat.id);
       }
 
-      if (brand) query = query.ilike('brand', brand);
       if (minPrice !== null) query = query.gte('price', minPrice);
       if (maxPrice !== null) query = query.lte('price', maxPrice);
-      if (inStock) query = query.gt('stock', 0);
 
       const sortMap = {
         'created_at': { column: 'created_at', ascending: false },
@@ -97,20 +93,12 @@ export default async function ShopPage({ searchParams }) {
       }
     }
 
-    if (brand) {
-      list = list.filter(p => p.brand?.toLowerCase() === brand.toLowerCase());
-    }
-
     if (minPrice !== null) {
       list = list.filter(p => p.price >= minPrice);
     }
 
     if (maxPrice !== null) {
       list = list.filter(p => p.price <= maxPrice);
-    }
-
-    if (inStock) {
-      list = list.filter(p => p.stock > 0);
     }
 
     if (sort === 'price_asc') {
@@ -126,15 +114,12 @@ export default async function ShopPage({ searchParams }) {
   }
 
   const totalPages = Math.ceil(count / PER_PAGE);
-  const brands = [...new Set(products.map(b => b.brand).filter(Boolean))];
 
   const currentParams = {};
   if (sort && sort !== 'created_at') currentParams.sort = sort;
   if (category) currentParams.category = category;
-  if (brand) currentParams.brand = brand;
   if (minPrice !== null) currentParams.min_price = minPrice.toString();
   if (maxPrice !== null) currentParams.max_price = maxPrice.toString();
-  if (inStock) currentParams.in_stock = '1';
 
   return (
     <main>
@@ -186,38 +171,6 @@ export default async function ShopPage({ searchParams }) {
                 ))}
               </ul>
             </div>
-
-            {brands.length > 0 && (
-              <div className="shop-sidebar__section">
-                <h3 className="shop-sidebar__title">Бренд</h3>
-                <ul className="shop-sidebar__list">
-                  {brands.map(b => (
-                    <li key={b}>
-                      <Link
-                        href={`/shop?brand=${encodeURIComponent(b)}${category ? `&category=${category}` : ''}`}
-                        className={brand === b ? 'active' : ''}
-                      >
-                        {b}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <div className="shop-sidebar__section">
-              <h3 className="shop-sidebar__title">Наявність</h3>
-              <ul className="shop-sidebar__list">
-                <li>
-                  <Link
-                    href={`/shop?in_stock=1${category ? `&category=${category}` : ''}`}
-                    className={inStock ? 'active' : ''}
-                  >
-                    В наявності
-                  </Link>
-                </li>
-              </ul>
-            </div>
           </aside>
 
           <div>
@@ -235,10 +188,8 @@ export default async function ShopPage({ searchParams }) {
             <ShopProductGrid
               initialProducts={products}
               currentCategory={category}
-              currentBrand={brand}
               minPrice={minPrice}
               maxPrice={maxPrice}
-              inStock={inStock}
             />
 
             <Pagination
