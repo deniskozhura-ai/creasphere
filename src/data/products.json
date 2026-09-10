@@ -38,27 +38,6 @@
     ]
   },
   {
-    "id": "p1",
-    "name": "Подарунковий бокс «Теплий вечір»",
-    "slug": "gift-box-warm-evening",
-    "sku": "CS-GIFT-01",
-    "price": 750,
-    "stock": 100,
-    "status": "in_stock",
-    "category_id": "1",
-    "category_name": "Подарунки ручної роботи",
-    "brand": "CreaSphere",
-    "material": "Крафтовий картон, натуральний соєвий віск",
-    "dimensions": "20 × 20 × 10 см",
-    "weight": "650 г",
-    "production_time": "В наявності",
-    "description": "Святковий подарунковий набір ручної роботи: авторська соєва ароматична свічка, добірний крафтовий чай, свіже імбирне печиво та дизайнерська листівка.",
-    "images": [
-      "/gift_collection.webp",
-      "/hero_products.webp"
-    ]
-  },
-  {
     "id": "p2",
     "name": "Керамічна чашка «Павлоградські світанки»",
     "slug": "ceramic-cup-pavlograd",

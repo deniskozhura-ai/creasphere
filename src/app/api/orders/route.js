@@ -103,32 +103,6 @@ export async function POST(request) {
           );
 
           if (!matched) {
-            try {
-              const localProduct = getProducts().find((p) => p.id === rawId || p.sku === targetSku || p.slug === rawId);
-              if (localProduct) {
-                const { data: created } = await supabaseAdmin
-                  .from('products')
-                  .insert([{
-                    name: localProduct.name,
-                    slug: localProduct.slug || `prod-${Date.now()}`,
-                    sku: localProduct.sku || targetSku,
-                    description: localProduct.description || '',
-                    price: localProduct.price,
-                    stock: localProduct.stock || 100,
-                    brand: localProduct.brand || 'CreaSphere',
-                    material: localProduct.material || '',
-                    dimensions: localProduct.dimensions || '',
-                    images: localProduct.images || [],
-                    status: 'active',
-                  }])
-                  .select('id, sku, slug')
-                  .single();
-                if (created) matched = created;
-              }
-            } catch (e) {}
-          }
-
-          if (!matched) {
             return NextResponse.json(
               { error: 'Один із обраних товарів не знайдено в каталозі.' },
               { status: 400 }

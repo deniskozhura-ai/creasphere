@@ -266,7 +266,11 @@ export default function AdminOrdersTable({ initialOrders = [] }) {
                   </td>
 
                   <td style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                    {order.payment_method === 'card' ? '💳 Онлайн / Картка' : '💵 Готівка / Післяплата'}
+                    {order.payment_method === 'requisites' || order.payment_method === 'call_requisites' || !order.payment_method
+                      ? '📞 За реквізитами'
+                      : order.payment_method === 'card'
+                      ? '💳 Картка / Реквізити'
+                      : '💵 Післяплата'}
                   </td>
 
                   <td>
@@ -427,7 +431,12 @@ export default function AdminOrdersTable({ initialOrders = [] }) {
                 <strong>Адреса доставки:</strong> {selectedOrder.delivery_city ? `${selectedOrder.delivery_city}, ` : ''}{selectedOrder.delivery_address || '—'}
               </div>
               <div>
-                <strong>Спосіб оплати:</strong> {selectedOrder.payment_method === 'card' ? '💳 Онлайн / Картка' : '💵 Післяплата'}
+                <strong>Спосіб оплати:</strong>{' '}
+                {selectedOrder.payment_method === 'requisites' || selectedOrder.payment_method === 'call_requisites' || !selectedOrder.payment_method
+                  ? '📞 За реквізитами (після дзвінка)'
+                  : selectedOrder.payment_method === 'card'
+                  ? '💳 Картка / Реквізити'
+                  : '💵 Післяплата'}
               </div>
               {selectedOrder.notes && (
                 <div style={{ marginTop: 8, background: '#fef3c7', padding: '8px 12px', borderRadius: 8, color: '#92400e' }}>

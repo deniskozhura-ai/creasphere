@@ -183,9 +183,9 @@ export function validateOrderPayload(data) {
   const delivery_method = ['nova_poshta', 'ukrposhta', 'pickup'].includes(data.delivery_method)
     ? data.delivery_method
     : 'nova_poshta';
-  const payment_method = ['card', 'cod', 'cash'].includes(data.payment_method)
+  const payment_method = ['requisites', 'call_requisites', 'card', 'cod', 'cash'].includes(data.payment_method)
     ? data.payment_method
-    : 'card';
+    : 'requisites';
   const notes = sanitizeString(data.notes, 500);
 
   if (!Array.isArray(data.items) || data.items.length === 0) {

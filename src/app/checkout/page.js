@@ -19,7 +19,7 @@ export default function CheckoutPage() {
     city: '',
     deliveryMethod: 'nova_poshta',
     warehouse: '',
-    paymentMethod: 'card',
+    paymentMethod: 'requisites',
     comment: '',
   });
 
@@ -234,21 +234,42 @@ export default function CheckoutPage() {
                 3. Оплата та примітки
               </h2>
 
-              <div className="form-group">
-                <label className="form-label" htmlFor="paymentMethod">
-                  Спосіб оплати
-                </label>
-                <select
-                  id="paymentMethod"
-                  name="paymentMethod"
-                  className="form-select"
-                  value={formData.paymentMethod}
-                  onChange={handleChange}
+              <div
+                style={{
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 14,
+                  padding: '18px 20px',
+                  marginBottom: 24,
+                  display: 'flex',
+                  gap: 16,
+                  alignItems: 'flex-start',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 22,
+                    lineHeight: 1,
+                    background: '#e0e7ff',
+                    borderRadius: '50%',
+                    width: 42,
+                    height: 42,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
                 >
-                  <option value="card">Онлайн-оплата (карткою Visa / Mastercard)</option>
-                  <option value="cod">Післяплата при отриманні (накладений платіж)</option>
-                  <option value="cash">Готівкою при самовивозі</option>
-                </select>
+                  📞
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, color: '#1e293b', fontSize: 15, marginBottom: 4 }}>
+                    Оплата за реквізитами після дзвінка менеджера
+                  </div>
+                  <div style={{ fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>
+                    Оплата онлайн на сайті не проводиться. Після отримання замовлення ми зателефонуємо вам для підтвердження деталей та надішлемо офіційні реквізити для оплати.
+                  </div>
+                </div>
               </div>
 
               <div className="form-group">

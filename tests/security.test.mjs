@@ -259,11 +259,30 @@ async function runAllSecurityTests() {
   }
 
   // -----------------------------------------------------------------
-  // 6 & 7. CLIENT PRICE & TOTAL MANIPULATION -> REJECTED/IGNORED
+  // 6 & 7. CLIENT-SIDE PRICE & TOTAL MANIPULATION -> REJECTED / SERVER PRICE ENFORCED
   // -----------------------------------------------------------------
   console.log('\n--- Test 6 & 7: Price & Total Manipulation Rejected/Ignored ---');
   let placedOrderNumber = null;
+  let testProductId = null;
   try {
+    // 1. Create a dedicated test product with catalog price 750
+    const createProdRes = await apiFetch('/api/products', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: adminCookie,
+      },
+      body: JSON.stringify({
+        name: `Price Guard Test Item ${Date.now()}`,
+        price: 750,
+        stock: 50,
+        category_id: '1',
+      }),
+    });
+    const prodData = await createProdRes.json();
+    testProductId = prodData.product?.id;
+    assert(createProdRes.status === 200 && testProductId, 'Created temporary test product for price verification');
+
     const res = await apiFetch('/api/orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -274,10 +293,10 @@ async function runAllSecurityTests() {
         delivery_city: 'Павлоград',
         delivery_address: 'Відділення №1',
         delivery_method: 'nova_poshta',
-        payment_method: 'card',
+        payment_method: 'requisites',
         // ATTEMPT TO MANIPULATE PRICE AND TOTAL:
         total: 1.0,
-        items: [{ id: 'p1', price: 0.01, quantity: 2 }],
+        items: [{ id: testProductId, price: 0.01, quantity: 2 }],
       }),
     });
     const data = await res.json();
@@ -296,7 +315,24 @@ async function runAllSecurityTests() {
       recordedOrder && recordedOrder.total_amount === 1500,
       `Server calculated catalog total: 1500 ₴ instead of client manipulated 1.0 ₴ (Recorded: ${recordedOrder?.total_amount} ₴)`
     );
+
+    // Clean up temporary test product so database stays completely pristine
+    if (testProductId) {
+      await apiFetch(`/api/products?id=${testProductId}`, {
+        method: 'DELETE',
+        headers: { Cookie: adminCookie },
+      });
+      testProductId = null;
+    }
   } catch (e) {
+    if (testProductId) {
+      try {
+        await apiFetch(`/api/products?id=${testProductId}`, {
+          method: 'DELETE',
+          headers: { Cookie: adminCookie },
+        });
+      } catch (_) {}
+    }
     assert(false, `Test 6 & 7 failed: ${e.message}`);
   }
 
@@ -514,6 +550,10 @@ async function runAllSecurityTests() {
   // -----------------------------------------------------------------
   console.log('\n--- Test 16: Mass Assignment Denied ---');
   try {
+    const prodListRes = await apiFetch('/api/products');
+    const prodList = await prodListRes.json();
+    const activeProductId = prodList[0]?.id || 'p1';
+
     const res = await apiFetch('/api/orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -525,7 +565,8 @@ async function runAllSecurityTests() {
         role: 'superadmin',
         status: 'completed',
         payment_status: 'paid',
-        items: [{ id: 'p1', quantity: 1 }],
+        payment_method: 'requisites',
+        items: [{ id: activeProductId, quantity: 1 }],
       }),
     });
     const data = await res.json();
@@ -574,6 +615,10 @@ async function runAllSecurityTests() {
   // -----------------------------------------------------------------
   console.log('\n--- Test 18: PII Not Returned Unnecessarily ---');
   try {
+    const prodListRes = await apiFetch('/api/products');
+    const prodList = await prodListRes.json();
+    const activeProductId = prodList[0]?.id || 'p1';
+
     // 1. Check orders POST response
     const orderRes = await apiFetch('/api/orders', {
       method: 'POST',
@@ -584,8 +629,9 @@ async function runAllSecurityTests() {
         customer_email: 'secret@example.com',
         delivery_city: 'Київ',
         delivery_address: 'вул. Хрещатик, 1',
+        payment_method: 'requisites',
         notes: 'Secret note',
-        items: [{ id: 'p1', quantity: 1 }],
+        items: [{ id: activeProductId, quantity: 1 }],
       }),
     });
     const orderData = await orderRes.json();

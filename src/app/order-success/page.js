@@ -14,7 +14,7 @@ function OrderSuccessContent() {
       <h1 className="order-success__title">Дякуємо за замовлення!</h1>
       <p className="order-success__number">Номер замовлення: <strong>{orderNumber}</strong></p>
       <p style={{ maxWidth: 500, margin: '0 auto 36px', color: 'var(--text-2)', lineHeight: 1.6 }}>
-        Ми отримали ваше замовлення та незабаром зв&apos;яжемося з вами для підтвердження деталей і доставки.
+        Ми отримали ваше замовлення! Наш менеджер незабаром зателефонує вам для уточнення деталей замовлення та надішле реквізити для оплати.
       </p>
       <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
         <Link href="/shop" className="btn btn--primary">
