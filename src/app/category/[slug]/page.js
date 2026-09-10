@@ -83,12 +83,12 @@ export default async function CategoryPage({ params, searchParams }) {
           .order(sortConfig.column, { ascending: sortConfig.ascending })
           .range(offset, offset + PER_PAGE - 1);
 
-        if (res.data && res.data.length > 0) {
-          products = res.data.map(p => ({
+        if (!res.error && Array.isArray(res.data)) {
+          products = res.data.map((p) => ({
             ...p,
             category_name: p.categories?.name || category.name,
           }));
-          count = res.count || products.length;
+          count = res.count !== null && res.count !== undefined ? res.count : products.length;
         }
       }
     } catch (e) {
@@ -96,9 +96,9 @@ export default async function CategoryPage({ params, searchParams }) {
     }
   }
 
-  // Demo fallback
-  if (!category) {
-    category = DEMO_CATEGORIES.find(c => c.slug === slug);
+  // Demo fallback only if Supabase not configured
+  if (!category && !isSupabaseConfigured) {
+    category = DEMO_CATEGORIES.find((c) => c.slug === slug);
   }
 
   if (!category) {
@@ -118,7 +118,7 @@ export default async function CategoryPage({ params, searchParams }) {
     );
   }
 
-  if (!products) {
+  if (!products && !isSupabaseConfigured) {
     let list = getProducts().filter(p =>
       String(p.category_id) === String(category.id) || p.category_slug === category.slug
     );

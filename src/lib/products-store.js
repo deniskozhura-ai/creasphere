@@ -69,7 +69,7 @@ export function deleteProduct(id) {
   }
 
   const current = getProducts();
-  const updated = current.filter((p) => p.id !== id && p.sku !== id);
+  const updated = current.filter((p) => p.id !== id && p.sku !== id && p.slug !== id);
 
   try {
     fs.writeFileSync(BUNDLE_FILE, JSON.stringify(updated, null, 2), 'utf-8');

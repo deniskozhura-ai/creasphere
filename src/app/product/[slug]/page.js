@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import ProductDetailClient from '@/components/ProductDetailClient';
 import { DEMO_PRODUCTS } from '@/lib/demo-data';
@@ -55,11 +56,18 @@ export default async function ProductPage({ params }) {
 
   if (isSupabaseConfigured) {
     try {
-      const { data } = await supabase
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
+      let query = supabase
         .from('products')
-        .select('*, categories(name, slug)')
-        .eq('slug', slug)
-        .single();
+        .select('*, categories(name, slug)');
+
+      if (isUuid) {
+        query = query.eq('id', slug);
+      } else {
+        query = query.eq('slug', slug);
+      }
+
+      const { data } = await query.maybeSingle();
       if (data) {
         product = {
           ...data,
@@ -71,13 +79,17 @@ export default async function ProductPage({ params }) {
     }
   }
 
-  if (!product) {
+  if (!product && !isSupabaseConfigured) {
     const list = getProducts();
     product = list.find((p) => p.slug === slug || p.id === slug);
   }
 
-  if (!product) {
+  if (!product && !isSupabaseConfigured) {
     product = DEMO_PRODUCTS.find((p) => p.slug === slug || p.id === slug);
+  }
+
+  if (!product) {
+    notFound();
   }
 
   return (

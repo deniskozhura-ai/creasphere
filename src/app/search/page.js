@@ -35,7 +35,7 @@ export default async function SearchPage({ searchParams }) {
       }
     }
 
-    if (products.length === 0) {
+    if (products.length === 0 && !isSupabaseConfigured) {
       const qLower = q.toLowerCase();
       const all = getProducts();
       products = all.filter(

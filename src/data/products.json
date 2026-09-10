@@ -5,7 +5,7 @@
     "slug": "картина-осені",
     "sku": "CS-ART-1843",
     "price": 1100,
-    "stock": 1,
+    "stock": 100,
     "status": "in_stock",
     "category_id": "cat-1789026433778",
     "category_name": "картини",
@@ -24,7 +24,7 @@
     "slug": "souvenir-candle-zatyshok",
     "sku": "CS-ART-7129",
     "price": 320,
-    "stock": 5,
+    "stock": 100,
     "status": "in_stock",
     "category_id": "1",
     "category_name": "Подарунки ручної роботи",
@@ -43,7 +43,7 @@
     "slug": "gift-box-warm-evening",
     "sku": "CS-GIFT-01",
     "price": 750,
-    "stock": 12,
+    "stock": 100,
     "status": "in_stock",
     "category_id": "1",
     "category_name": "Подарунки ручної роботи",
@@ -64,7 +64,7 @@
     "slug": "ceramic-cup-pavlograd",
     "sku": "CS-CER-02",
     "price": 380,
-    "stock": 8,
+    "stock": 100,
     "status": "in_stock",
     "category_id": "2",
     "category_name": "Сувеніри та декор",
@@ -85,7 +85,7 @@
     "slug": "kit-young-sculptor",
     "sku": "CS-KIT-03",
     "price": 520,
-    "stock": 15,
+    "stock": 100,
     "status": "in_stock",
     "category_id": "3",
     "category_name": "Творчі набори",
@@ -98,27 +98,6 @@
     "images": [
       "/kids_workshop.webp",
       "/workshop1.jpg"
-    ]
-  },
-  {
-    "id": "p4",
-    "name": "Текстильний ведмедик «Тіммі»",
-    "slug": "textile-bear-timmy",
-    "sku": "CS-TOY-04",
-    "price": 620,
-    "stock": 5,
-    "status": "in_stock",
-    "category_id": "4",
-    "category_name": "Дитячі іграшки",
-    "brand": "CreaSphere Craft",
-    "material": "Льон, бавовна, гіпоалергенний наповнювач",
-    "dimensions": "28 см",
-    "weight": "210 г",
-    "production_time": "2-3 дні під замовлення",
-    "description": "М'який авторський ведмедик ручної роботи у в'язаному светрику. Безпечний для найменших, деталі надійно вишиті.",
-    "images": [
-      "/workshop2.jpg",
-      "/about1.jpg"
     ]
   }
 ]

@@ -60,9 +60,32 @@ export default function AdminProductsManager({ initialProducts }) {
   const [customUrlInput, setCustomUrlInput] = useState('');
   const [modalError, setModalError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [confirmDeleteProduct, setConfirmDeleteProduct] = useState(null);
+
+  const [loadingProducts, setLoadingProducts] = useState(
+    !initialProducts || initialProducts.length === 0
+  );
 
   const fileInputRef = useRef(null);
   const modalContentRef = useRef(null);
+
+  const fetchProducts = async () => {
+    try {
+      const res = await fetch('/api/products');
+      const data = await res.json();
+      if (res.ok && Array.isArray(data)) {
+        setProducts(data);
+      }
+    } catch (e) {
+      console.error('Failed to refresh products:', e);
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
   const defaultForm = {
     name: '',
@@ -325,16 +348,23 @@ export default function AdminProductsManager({ initialProducts }) {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm('Видалити цей товар з каталогу?')) return;
-    setDeletingId(id);
+  const handleRequestDelete = (item) => {
+    setConfirmDeleteProduct(item);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!confirmDeleteProduct) return;
+    const item = confirmDeleteProduct;
+    setDeletingId(item.id);
     try {
-      const res = await fetch(`/api/products?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const res = await fetch(`/api/products?id=${encodeURIComponent(item.id)}`, { method: 'DELETE' });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        setProducts((prev) => prev.filter((p) => p.id !== id && p.sku !== id));
-        setSuccessMsg('Товар успішно видалено з каталогу!');
+        setProducts((prev) => prev.filter((p) => p.id !== item.id && p.sku !== item.id && p.sku !== item.sku));
+        setSuccessMsg(`Товар «${item.name}» успішно видалено з каталогу!`);
         setTimeout(() => setSuccessMsg(''), 4000);
+        setConfirmDeleteProduct(null);
+        await fetchProducts();
       } else {
         alert(data.error || 'Помилка при видаленні товару з бази даних');
       }
@@ -500,7 +530,7 @@ export default function AdminProductsManager({ initialProducts }) {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleDelete(item.id)}
+                        onClick={() => handleRequestDelete(item)}
                         disabled={deletingId === item.id}
                         style={{
                           padding: '4px 8px',
@@ -510,6 +540,7 @@ export default function AdminProductsManager({ initialProducts }) {
                           color: '#b91c1c',
                           border: 'none',
                           cursor: 'pointer',
+                          fontWeight: 500,
                         }}
                       >
                         {deletingId === item.id ? '...' : 'Видалити'}
@@ -521,7 +552,7 @@ export default function AdminProductsManager({ initialProducts }) {
             ) : (
               <tr>
                 <td colSpan={7} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)' }}>
-                  Товарів не знайдено
+                  {loadingProducts ? 'Завантаження каталогу товарів...' : 'Товарів не знайдено'}
                 </td>
               </tr>
             )}
@@ -988,6 +1019,79 @@ export default function AdminProductsManager({ initialProducts }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Delete Confirmation Modal */}
+      {confirmDeleteProduct && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: 16,
+          }}
+          onClick={() => !deletingId && setConfirmDeleteProduct(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#fff',
+              borderRadius: 16,
+              width: '100%',
+              maxWidth: 460,
+              padding: 24,
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+            }}
+          >
+            <div style={{ fontSize: 32, marginBottom: 12 }}>⚠️</div>
+            <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 8px', color: '#111827' }}>
+              Видалити товар?
+            </h3>
+            <p style={{ color: '#4b5563', fontSize: 14, lineHeight: 1.5, margin: '0 0 20px' }}>
+              Ви дійсно бажаєте видалити товар <strong>«{confirmDeleteProduct.name}»</strong> ({confirmDeleteProduct.sku || 'без артикулу'}) з каталогу? Цю дію неможливо скасувати.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button
+                type="button"
+                disabled={Boolean(deletingId)}
+                onClick={() => setConfirmDeleteProduct(null)}
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: 10,
+                  border: '1px solid #d1d5db',
+                  background: '#fff',
+                  color: '#374151',
+                  fontSize: 14,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                Скасувати
+              </button>
+              <button
+                type="button"
+                disabled={Boolean(deletingId)}
+                onClick={handleConfirmDelete}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: 10,
+                  border: 'none',
+                  background: '#dc2626',
+                  color: '#fff',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: deletingId ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {deletingId ? 'Видалення...' : 'Так, видалити'}
+              </button>
+            </div>
           </div>
         </div>
       )}

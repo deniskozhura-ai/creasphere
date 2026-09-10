@@ -62,12 +62,12 @@ export default async function ShopPage({ searchParams }) {
       query = query.range(offset, offset + PER_PAGE - 1);
 
       const res = await query;
-      if (res.data && res.data.length > 0) {
-        products = res.data.map(p => ({
+      if (!res.error && Array.isArray(res.data)) {
+        products = res.data.map((p) => ({
           ...p,
           category_name: p.categories?.name || null,
         }));
-        count = res.count || products.length;
+        count = res.count !== null && res.count !== undefined ? res.count : products.length;
       }
 
       const { data: catData } = await supabase
@@ -82,8 +82,8 @@ export default async function ShopPage({ searchParams }) {
     }
   }
 
-  // Fallback to data store
-  if (!products) {
+  // Fallback to data store only if Supabase is unconfigured
+  if (products === null && !isSupabaseConfigured) {
     let list = [...getProducts()];
 
     if (category) {

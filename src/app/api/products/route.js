@@ -16,7 +16,7 @@ export async function GET() {
     if (isSupabaseAdminConfigured) {
       const { data: dbProducts, error } = await supabaseAdmin
         .from('products')
-        .select('*')
+        .select('*, categories(name, slug)')
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -26,7 +26,12 @@ export async function GET() {
           { status: 503 }
         );
       }
-      return NextResponse.json(dbProducts || []);
+      const formatted = (dbProducts || []).map((p) => ({
+        ...p,
+        category_name: p.categories?.name || p.category_name || null,
+        category_slug: p.categories?.slug || p.category_slug || null,
+      }));
+      return NextResponse.json(formatted);
     }
 
     const products = getProducts();
@@ -78,24 +83,28 @@ export async function POST(request) {
     };
 
     if (isSupabaseAdminConfigured) {
+      const isCatUuid = sanitized.category_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sanitized.category_id);
+      const insertData = {
+        name: newProduct.name,
+        slug: newProduct.slug,
+        sku: newProduct.sku,
+        description: newProduct.description,
+        price: newProduct.price,
+        stock: newProduct.stock,
+        brand: newProduct.brand,
+        material: newProduct.material,
+        dimensions: newProduct.dimensions,
+        images: newProduct.images,
+        status: newProduct.status,
+      };
+      if (isCatUuid) {
+        insertData.category_id = sanitized.category_id;
+      }
+
       const { data: dbProduct, error } = await supabaseAdmin
         .from('products')
-        .insert([
-          {
-            name: newProduct.name,
-            slug: newProduct.slug,
-            sku: newProduct.sku,
-            description: newProduct.description,
-            price: newProduct.price,
-            stock: newProduct.stock,
-            brand: newProduct.brand,
-            material: newProduct.material,
-            dimensions: newProduct.dimensions,
-            images: newProduct.images,
-            status: newProduct.status,
-          },
-        ])
-        .select()
+        .insert([insertData])
+        .select('*, categories(name, slug)')
         .single();
 
       if (error || !dbProduct) {
@@ -106,9 +115,14 @@ export async function POST(request) {
         );
       }
 
+      const formatted = {
+        ...dbProduct,
+        category_name: dbProduct.categories?.name || dbProduct.category_name || sanitized.category_name,
+      };
+
       return NextResponse.json({
         success: true,
-        product: dbProduct,
+        product: formatted,
         message: 'Товар успішно додано!',
       });
     }
@@ -156,20 +170,26 @@ export async function PUT(request) {
     }
 
     if (isSupabaseAdminConfigured) {
+      const isCatUuid = sanitized.category_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sanitized.category_id);
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      const updateData = {
+        name: sanitized.name,
+        price: sanitized.price,
+        stock: sanitized.stock,
+        status: sanitized.status,
+        material: sanitized.material,
+        dimensions: sanitized.dimensions,
+        description: sanitized.description,
+        images: sanitized.images,
+        updated_at: new Date().toISOString(),
+      };
+      if (isCatUuid) {
+        updateData.category_id = sanitized.category_id;
+      }
+
       let query = supabaseAdmin
         .from('products')
-        .update({
-          name: sanitized.name,
-          price: sanitized.price,
-          stock: sanitized.stock,
-          status: sanitized.status,
-          material: sanitized.material,
-          dimensions: sanitized.dimensions,
-          description: sanitized.description,
-          images: sanitized.images,
-          updated_at: new Date().toISOString(),
-        });
+        .update(updateData);
 
       if (isUuid) {
         query = query.eq('id', id);
@@ -177,16 +197,21 @@ export async function PUT(request) {
         query = query.or(`sku.eq.${id},slug.eq.${id}`);
       }
 
-      const { data: dbUpdated, error } = await query.select().single();
+      const { data: dbUpdated, error } = await query.select('*, categories(name, slug)').single();
 
       if (error) {
         console.error('Supabase product update error:', error.message);
         return NextResponse.json({ error: 'Помилка оновлення товару в базі даних' }, { status: 503 });
       }
 
+      const formatted = {
+        ...dbUpdated,
+        category_name: dbUpdated.categories?.name || dbUpdated.category_name || sanitized.category_name,
+      };
+
       return NextResponse.json({
         success: true,
-        product: dbUpdated,
+        product: formatted,
         message: 'Товар оновлено!',
       });
     }
@@ -234,11 +259,25 @@ export async function DELETE(request) {
         query = query.or(`sku.eq.${id},slug.eq.${id}`);
       }
 
-      const { error } = await query;
+      const { data: deletedRows, error } = await query.select('id, sku, slug');
 
       if (error) {
         console.error('Supabase product delete error:', error.message);
         return NextResponse.json({ error: 'Помилка видалення товару з бази даних' }, { status: 503 });
+      }
+
+      // Also clean up local store if in non-production
+      if (process.env.NODE_ENV !== 'production') {
+        try {
+          deleteProduct(id);
+          if (Array.isArray(deletedRows)) {
+            for (const r of deletedRows) {
+              if (r.sku) deleteProduct(r.sku);
+              if (r.slug) deleteProduct(r.slug);
+              if (r.id) deleteProduct(r.id);
+            }
+          }
+        } catch (e) {}
       }
 
       return NextResponse.json({ success: true });
