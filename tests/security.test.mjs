@@ -549,10 +549,21 @@ async function runAllSecurityTests() {
   // 16. MASS ASSIGNMENT -> DENIED
   // -----------------------------------------------------------------
   console.log('\n--- Test 16: Mass Assignment Denied ---');
+  let tempProductId16 = null;
   try {
     const prodListRes = await apiFetch('/api/products');
     const prodList = await prodListRes.json();
-    const activeProductId = prodList[0]?.id || 'p1';
+    let activeProductId = prodList[0]?.id;
+    if (!activeProductId) {
+      const cRes = await apiFetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Cookie: adminCookie },
+        body: JSON.stringify({ name: `Mass Test Item ${Date.now()}`, price: 100, stock: 50, category_id: '1' }),
+      });
+      const cData = await cRes.json();
+      tempProductId16 = cData.product?.id;
+      activeProductId = tempProductId16;
+    }
 
     const res = await apiFetch('/api/orders', {
       method: 'POST',
@@ -580,7 +591,15 @@ async function runAllSecurityTests() {
     const order = adminOrders.find((o) => o.order_number === data.orderNumber);
     assert(order && order.status === 'pending', 'Status was NOT mass-assigned to completed (stays pending)');
     assert(order && order.is_admin === undefined, 'is_admin field was stripped and discarded');
+
+    if (tempProductId16) {
+      await apiFetch(`/api/products?id=${tempProductId16}`, { method: 'DELETE', headers: { Cookie: adminCookie } });
+      tempProductId16 = null;
+    }
   } catch (e) {
+    if (tempProductId16) {
+      try { await apiFetch(`/api/products?id=${tempProductId16}`, { method: 'DELETE', headers: { Cookie: adminCookie } }); } catch (_) {}
+    }
     assert(false, `Test 16 failed: ${e.message}`);
   }
 
@@ -614,10 +633,21 @@ async function runAllSecurityTests() {
   // 18. PII NOT RETURNED UNNECESSARILY
   // -----------------------------------------------------------------
   console.log('\n--- Test 18: PII Not Returned Unnecessarily ---');
+  let tempProductId18 = null;
   try {
     const prodListRes = await apiFetch('/api/products');
     const prodList = await prodListRes.json();
-    const activeProductId = prodList[0]?.id || 'p1';
+    let activeProductId = prodList[0]?.id;
+    if (!activeProductId) {
+      const cRes = await apiFetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Cookie: adminCookie },
+        body: JSON.stringify({ name: `PII Test Item ${Date.now()}`, price: 100, stock: 50, category_id: '1' }),
+      });
+      const cData = await cRes.json();
+      tempProductId18 = cData.product?.id;
+      activeProductId = tempProductId18;
+    }
 
     // 1. Check orders POST response
     const orderRes = await apiFetch('/api/orders', {
@@ -640,6 +670,11 @@ async function runAllSecurityTests() {
       !orderData.customer_name && !orderData.customer_phone && !orderData.customer_email && !orderData.delivery_address,
       'POST /api/orders response does NOT leak customer PII (only orderNumber returned)'
     );
+
+    if (tempProductId18) {
+      await apiFetch(`/api/products?id=${tempProductId18}`, { method: 'DELETE', headers: { Cookie: adminCookie } });
+      tempProductId18 = null;
+    }
 
     // 2. Check custom-orders POST response
     const customRes = await apiFetch('/api/custom-orders', {
