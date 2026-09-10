@@ -71,6 +71,47 @@ export async function POST(request) {
     // 4. Supabase Atomic Order Creation via stored procedure
     if (isSupabaseAdminConfigured) {
       try {
+        // Resolve item IDs to database UUIDs (support UUID, slug, SKU, or legacy ID)
+        const { data: dbProducts, error: prodFetchError } = await supabaseAdmin
+          .from('products')
+          .select('id, sku, slug');
+
+        if (prodFetchError) {
+          console.error('Supabase fetch products error:', prodFetchError.message);
+          return NextResponse.json(
+            { error: 'Помилка завантаження каталогу товарів.' },
+            { status: 503 }
+          );
+        }
+
+        const DEMO_ID_TO_SKU = {
+          p1: 'CS-GIFT-01',
+          p2: 'CS-CER-02',
+          p3: 'CS-KIT-03',
+          p4: 'CS-TOY-04',
+          p5: 'CS-CND-05',
+          p6: 'CS-KIT-06',
+        };
+
+        const resolvedItems = [];
+        for (const item of sanitized.items) {
+          const rawId = String(item.id || '').trim();
+          const targetSku = DEMO_ID_TO_SKU[rawId] || rawId;
+
+          const matched = (dbProducts || []).find(
+            (p) => p.id === rawId || p.sku === targetSku || p.slug === rawId
+          );
+
+          if (!matched) {
+            return NextResponse.json(
+              { error: 'Один із обраних товарів не знайдено в каталозі.' },
+              { status: 400 }
+            );
+          }
+
+          resolvedItems.push({ id: matched.id, quantity: item.quantity });
+        }
+
         const { data: rpcResult, error: rpcError } = await supabaseAdmin.rpc('create_order_atomic', {
           p_order_number: orderNumber,
           p_customer_name: sanitized.customer_name,
@@ -80,7 +121,7 @@ export async function POST(request) {
           p_delivery_method: sanitized.delivery_method,
           p_payment_method: sanitized.payment_method,
           p_notes: sanitized.notes || '',
-          p_items: sanitized.items.map((i) => ({ id: i.id, quantity: i.quantity })),
+          p_items: resolvedItems,
         });
 
         if (rpcError) {
