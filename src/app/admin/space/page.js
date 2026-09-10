@@ -1,4 +1,3 @@
-import { getSpaceBookings } from '@/lib/space-bookings-store';
 import AdminSpaceTable from '@/components/AdminSpaceTable';
 
 export const dynamic = 'force-dynamic';
@@ -8,8 +7,6 @@ export const metadata = {
 };
 
 export default function AdminSpacePage() {
-  const bookings = getSpaceBookings();
-
   return (
     <div>
       <div className="admin-header">
@@ -21,7 +18,7 @@ export default function AdminSpacePage() {
         </div>
       </div>
 
-      <AdminSpaceTable initialBookings={bookings} />
+      <AdminSpaceTable />
     </div>
   );
 }

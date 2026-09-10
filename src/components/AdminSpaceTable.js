@@ -2,28 +2,48 @@
 
 import { useState, useEffect } from 'react';
 
-export default function AdminSpaceTable({ initialBookings }) {
-  const [bookings, setBookings] = useState(initialBookings || []);
+export default function AdminSpaceTable() {
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [updatingId, setUpdatingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [selectedBooking, setSelectedBooking] = useState(null);
 
+  // Confirmation modal state (replaces native confirm())
+  const [confirmModal, setConfirmModal] = useState({ open: false, id: null });
+
+  // Fetch live data from Supabase via API on mount
   useEffect(() => {
-    try {
-      const localBookings = JSON.parse(localStorage.getItem('creasphere_space_bookings') || '[]');
-      if (Array.isArray(localBookings) && localBookings.length > 0) {
-        setBookings((prev) => {
-          const existingIds = new Set(prev.map((b) => b.id || b.booking_number));
-          const newToAdd = localBookings.filter((b) => !existingIds.has(b.id || b.booking_number));
-          return [...newToAdd, ...prev];
-        });
-      }
-    } catch (e) {
-      console.warn('LocalStorage space bookings read error:', e);
-    }
+    fetchBookings();
   }, []);
+
+  const fetchBookings = async () => {
+    try {
+      const res = await fetch('/api/space-bookings');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          // Normalize field names: Supabase uses date/time/people_count,
+          // but the UI expects event_date/event_time/guests_count
+          const normalized = data.map((b) => ({
+            ...b,
+            event_date: b.event_date || b.date || '',
+            event_time: b.event_time || b.time || '',
+            guests_count: b.guests_count || b.people_count || 0,
+            duration_hours: b.duration_hours || '',
+            event_type: b.event_type || b.tariff || '',
+          }));
+          setBookings(normalized);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch space bookings:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleStatusChange = async (id, newStatus) => {
     setUpdatingId(id);
@@ -38,13 +58,6 @@ export default function AdminSpaceTable({ initialBookings }) {
         setBookings((prev) =>
           prev.map((b) => (b.id === id || b.booking_number === id ? { ...b, status: newStatus } : b))
         );
-        try {
-          const localBookings = JSON.parse(localStorage.getItem('creasphere_space_bookings') || '[]');
-          const updatedLocal = localBookings.map((b) =>
-            b.id === id || b.booking_number === id ? { ...b, status: newStatus } : b
-          );
-          localStorage.setItem('creasphere_space_bookings', JSON.stringify(updatedLocal));
-        } catch (e) {}
 
         if (selectedBooking && (selectedBooking.id === id || selectedBooking.booking_number === id)) {
           setSelectedBooking((prev) => ({ ...prev, status: newStatus }));
@@ -57,18 +70,17 @@ export default function AdminSpaceTable({ initialBookings }) {
     }
   };
 
+  const handleDeleteConfirm = (id) => {
+    setConfirmModal({ open: true, id });
+  };
+
   const handleDelete = async (id) => {
-    if (!confirm('Видалити цю заявку на оренду простору?')) return;
+    setConfirmModal({ open: false, id: null });
     setDeletingId(id);
     try {
       const res = await fetch(`/api/space-bookings?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
         setBookings((prev) => prev.filter((b) => b.id !== id && b.booking_number !== id));
-        try {
-          const localBookings = JSON.parse(localStorage.getItem('creasphere_space_bookings') || '[]');
-          const updatedLocal = localBookings.filter((b) => b.id !== id && b.booking_number !== id);
-          localStorage.setItem('creasphere_space_bookings', JSON.stringify(updatedLocal));
-        } catch (e) {}
         if (selectedBooking && (selectedBooking.id === id || selectedBooking.booking_number === id)) {
           setSelectedBooking(null);
         }
@@ -89,6 +101,7 @@ export default function AdminSpaceTable({ initialBookings }) {
       b.customer_name?.toLowerCase().includes(q) ||
       b.customer_phone?.toLowerCase().includes(q) ||
       b.event_type?.toLowerCase().includes(q) ||
+      b.tariff?.toLowerCase().includes(q) ||
       b.notes?.toLowerCase().includes(q)
     );
   });
@@ -124,8 +137,86 @@ export default function AdminSpaceTable({ initialBookings }) {
     }
   };
 
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '48px 16px', color: 'var(--text-muted)' }}>
+        Завантаження заявок...
+      </div>
+    );
+  }
+
   return (
     <div>
+      {/* Confirmation Modal */}
+      {confirmModal.open && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.65)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1100,
+            padding: 20,
+          }}
+          onClick={() => setConfirmModal({ open: false, id: null })}
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: 16,
+              padding: 28,
+              maxWidth: 400,
+              width: '100%',
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+              textAlign: 'center',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: 36, marginBottom: 12 }}>🗑️</div>
+            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Видалити заявку?</h3>
+            <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 20 }}>
+              Цю дію неможливо скасувати. Заявка буде видалена назавжди.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <button
+                type="button"
+                onClick={() => setConfirmModal({ open: false, id: null })}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: 10,
+                  border: '1px solid #d1d5db',
+                  background: '#fff',
+                  fontWeight: 600,
+                  fontSize: 14,
+                  cursor: 'pointer',
+                }}
+              >
+                Скасувати
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDelete(confirmModal.id)}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: 10,
+                  border: 'none',
+                  background: '#dc2626',
+                  color: '#fff',
+                  fontWeight: 600,
+                  fontSize: 14,
+                  cursor: 'pointer',
+                }}
+              >
+                Так, видалити
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Search & Tabs */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, gap: 14, flexWrap: 'wrap' }}>
         <input
@@ -199,7 +290,7 @@ export default function AdminSpaceTable({ initialBookings }) {
                     </a>
                   </td>
                   <td style={{ fontWeight: 600, maxWidth: 200 }}>
-                    <div>{item.event_type}</div>
+                    <div>{item.event_type || item.tariff}</div>
                     {item.notes && (
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>
                         {item.notes}
@@ -208,11 +299,15 @@ export default function AdminSpaceTable({ initialBookings }) {
                   </td>
                   <td>
                     <div><strong>{item.event_date}</strong></div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>о {item.event_time}</div>
+                    {item.event_time && (
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>о {item.event_time}</div>
+                    )}
                   </td>
                   <td>
                     <div>👥 {item.guests_count} гостей</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>⏳ {item.duration_hours} год</div>
+                    {item.duration_hours && (
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>⏳ {item.duration_hours} год</div>
+                    )}
                   </td>
                   <td>
                     <select
@@ -247,7 +342,7 @@ export default function AdminSpaceTable({ initialBookings }) {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleDelete(item.id || item.booking_number)}
+                        onClick={() => handleDeleteConfirm(item.id || item.booking_number)}
                         disabled={deletingId === (item.id || item.booking_number)}
                         style={{
                           padding: '4px 8px',
@@ -325,9 +420,11 @@ export default function AdminSpaceTable({ initialBookings }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 14, lineHeight: 1.6, marginBottom: 24, background: '#f9fafb', padding: 16, borderRadius: 12 }}>
               <div><strong>Замовник:</strong> {selectedBooking.customer_name}</div>
               <div><strong>Телефон:</strong> <a href={`tel:${selectedBooking.customer_phone}`} style={{ color: 'var(--primary, #606c38)', fontWeight: 600 }}>{selectedBooking.customer_phone}</a></div>
-              <div><strong>Тип події:</strong> {selectedBooking.event_type}</div>
+              <div><strong>Тип події:</strong> {selectedBooking.event_type || selectedBooking.tariff}</div>
               <div><strong>Дата та час:</strong> {selectedBooking.event_date} о {selectedBooking.event_time}</div>
-              <div><strong>Тривалість:</strong> {selectedBooking.duration_hours} години</div>
+              {selectedBooking.duration_hours && (
+                <div><strong>Тривалість:</strong> {selectedBooking.duration_hours} години</div>
+              )}
               <div><strong>Кількість гостей:</strong> {selectedBooking.guests_count} осіб</div>
               {selectedBooking.notes && (
                 <div style={{ background: '#fef3c7', padding: '8px 12px', borderRadius: 8, color: '#92400e' }}>
@@ -342,7 +439,7 @@ export default function AdminSpaceTable({ initialBookings }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <button
                 type="button"
-                onClick={() => handleDelete(selectedBooking.id || selectedBooking.booking_number)}
+                onClick={() => handleDeleteConfirm(selectedBooking.id || selectedBooking.booking_number)}
                 style={{
                   padding: '8px 14px',
                   borderRadius: 8,
