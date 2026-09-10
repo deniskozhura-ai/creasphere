@@ -11,20 +11,24 @@ export default function AdminBookingsTable({ initialBookings }) {
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [loadingId, setLoadingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [confirmDeleteBooking, setConfirmDeleteBooking] = useState(null);
 
-  useEffect(() => {
+  const fetchBookings = async () => {
     try {
-      const localBookings = JSON.parse(localStorage.getItem('creasphere_workshop_bookings') || '[]');
-      if (Array.isArray(localBookings) && localBookings.length > 0) {
-        setBookings((prev) => {
-          const existingIds = new Set(prev.map((b) => b.id || b.booking_number));
-          const newToAdd = localBookings.filter((b) => !existingIds.has(b.id || b.booking_number));
-          return [...newToAdd, ...prev];
-        });
+      const res = await fetch('/api/workshops/book');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setBookings(data);
+        }
       }
     } catch (e) {
-      console.warn('LocalStorage bookings read error:', e);
+      console.warn('Live bookings fetch error:', e);
     }
+  };
+
+  useEffect(() => {
+    fetchBookings();
   }, []);
 
   const handleStatusChange = async (id, newStatus) => {
@@ -62,24 +66,27 @@ export default function AdminBookingsTable({ initialBookings }) {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm('Видалити цей запис на майстер-клас?')) return;
+  const handleDelete = async (b) => {
+    if (!b) return;
+    const id = b.id || b.booking_number;
     setDeletingId(id);
     try {
-      const res = await fetch(`/api/workshops/book?id=${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/workshops/book?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
       if (res.ok) {
-        setBookings((prev) => prev.filter((b) => b.id !== id && b.booking_number !== id));
+        setBookings((prev) => prev.filter((item) => item.id !== id && item.booking_number !== id));
+        setConfirmDeleteBooking(null);
         try {
           const localBookings = JSON.parse(localStorage.getItem('creasphere_workshop_bookings') || '[]');
-          const updatedLocal = localBookings.filter((b) => b.id !== id && b.booking_number !== id);
+          const updatedLocal = localBookings.filter((item) => item.id !== id && item.booking_number !== id);
           localStorage.setItem('creasphere_workshop_bookings', JSON.stringify(updatedLocal));
         } catch (e) {}
         if (selectedBooking && (selectedBooking.id === id || selectedBooking.booking_number === id)) {
           setSelectedBooking(null);
         }
-        showToast('Запис видалено', 'success');
+        showToast('Запис на майстер-клас успішно видалено', 'success');
       } else {
-        showToast('Помилка видалення', 'error');
+        const data = await res.json().catch(() => ({}));
+        showToast(data.error || 'Помилка видалення', 'error');
       }
     } catch (err) {
       showToast('Помилка видалення', 'error');
@@ -245,7 +252,7 @@ export default function AdminBookingsTable({ initialBookings }) {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleDelete(b.id || b.booking_number)}
+                        onClick={() => setConfirmDeleteBooking(b)}
                         disabled={deletingId === (b.id || b.booking_number)}
                         style={{
                           padding: '4px 8px',
@@ -345,7 +352,7 @@ export default function AdminBookingsTable({ initialBookings }) {
             <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
               <button
                 type="button"
-                onClick={() => handleDelete(selectedBooking.id || selectedBooking.booking_number)}
+                onClick={() => setConfirmDeleteBooking(selectedBooking)}
                 style={{
                   padding: '8px 14px',
                   borderRadius: 8,
@@ -382,6 +389,75 @@ export default function AdminBookingsTable({ initialBookings }) {
                   </button>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Custom Delete Confirmation Modal ── */}
+      {confirmDeleteBooking && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000,
+            padding: 20,
+          }}
+          onClick={() => setConfirmDeleteBooking(null)}
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: 16,
+              padding: 24,
+              maxWidth: 440,
+              width: '100%',
+              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: '#111827' }}>
+              Видалити цей запис на майстер-клас?
+            </h3>
+            <p style={{ color: '#4b5563', fontSize: 14, lineHeight: 1.5, marginBottom: 20 }}>
+              Ви дійсно бажаєте безповоротно видалити запис <strong>#{confirmDeleteBooking.booking_number}</strong> від клієнта <strong>{confirmDeleteBooking.customer_name}</strong>?
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteBooking(null)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 8,
+                  border: '1px solid #d1d5db',
+                  background: '#fff',
+                  cursor: 'pointer',
+                  fontWeight: 500,
+                }}
+              >
+                Скасувати
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDelete(confirmDeleteBooking)}
+                disabled={deletingId === (confirmDeleteBooking.id || confirmDeleteBooking.booking_number)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: '#dc2626',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                }}
+              >
+                {deletingId === (confirmDeleteBooking.id || confirmDeleteBooking.booking_number) ? 'Видалення...' : 'Видалити'}
+              </button>
             </div>
           </div>
         </div>

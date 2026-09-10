@@ -288,11 +288,14 @@ export async function requireAdmin(request) {
   // CSRF validation on state-changing methods (POST, PUT, PATCH, DELETE)
   if (request && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method?.toUpperCase())) {
     const origin = request.headers.get('origin');
-    const host = request.headers.get('host');
+    const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
     if (origin && host) {
       try {
-        const originHost = new URL(origin).host;
-        if (originHost !== host) {
+        const originUrl = new URL(origin);
+        const originHost = originUrl.host;
+        const originHostname = originUrl.hostname;
+        const hostNameOnly = host.split(':')[0];
+        if (originHost !== host && originHostname !== hostNameOnly) {
           return NextResponse.json(
             { error: 'Недійсне джерело запиту (CSRF protection)' },
             { status: 403 }

@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useToast } from '@/components/Toast';
 
 export default function AdminWorkshopsManager() {
+  const { showToast } = useToast();
   const [workshops, setWorkshops] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -140,13 +142,12 @@ export default function AdminWorkshopsManager() {
       if (res.ok) {
         setWorkshops((prev) => prev.filter((item) => item.id !== w.id));
         setConfirmDeleteWorkshop(null);
-        setSuccessMsg(`Майстер-клас «${w.title}» успішно видалено!`);
-        setTimeout(() => setSuccessMsg(''), 4000);
+        showToast(`Майстер-клас «${w.title}» успішно видалено!`, 'success');
       } else {
-        alert(data.error || 'Помилка при видаленні майстер-класу');
+        showToast(data.error || 'Помилка при видаленні майстер-класу', 'error');
       }
     } catch (err) {
-      alert('Помилка з’єднання при видаленні майстер-класу');
+      showToast('Помилка з’єднання при видаленні майстер-класу', 'error');
     } finally {
       setDeletingId(null);
     }

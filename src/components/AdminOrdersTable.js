@@ -1,14 +1,35 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useToast } from '@/components/Toast';
 
 export default function AdminOrdersTable({ initialOrders = [] }) {
+  const { showToast } = useToast();
   const [orders, setOrders] = useState(initialOrders);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [updatingId, setUpdatingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [confirmDeleteOrder, setConfirmDeleteOrder] = useState(null);
+
+  const fetchOrders = async () => {
+    try {
+      const res = await fetch('/api/orders');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setOrders(data);
+        }
+      }
+    } catch (e) {
+      console.warn('Live orders fetch error:', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
 
   const handleStatusChange = async (id, newStatus) => {
     setUpdatingId(id);
@@ -23,24 +44,38 @@ export default function AdminOrdersTable({ initialOrders = [] }) {
         setOrders((prev) =>
           prev.map((o) => (o.id === id || o.order_number === id ? { ...o, status: newStatus } : o))
         );
+        showToast(`Статус замовлення оновлено`, 'success');
+      } else {
+        showToast('Помилка оновлення статусу', 'error');
       }
     } catch (err) {
       console.error('Status update failed:', err);
+      showToast('Помилка з’єднання', 'error');
     } finally {
       setUpdatingId(null);
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm('Видалити це замовлення?')) return;
+  const handleDelete = async (order) => {
+    if (!order) return;
+    const id = order.id || order.order_number;
     setDeletingId(id);
     try {
-      const res = await fetch(`/api/orders?id=${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/orders?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
       if (res.ok) {
         setOrders((prev) => prev.filter((o) => o.id !== id && o.order_number !== id));
+        setConfirmDeleteOrder(null);
+        if (selectedOrder && (selectedOrder.id === id || selectedOrder.order_number === id)) {
+          setSelectedOrder(null);
+        }
+        showToast('Замовлення успішно видалено', 'success');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        showToast(data.error || 'Помилка видалення замовлення', 'error');
       }
     } catch (err) {
       console.error('Delete order failed:', err);
+      showToast('Помилка видалення замовлення', 'error');
     } finally {
       setDeletingId(null);
     }
@@ -283,7 +318,7 @@ export default function AdminOrdersTable({ initialOrders = [] }) {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleDelete(order.id || order.order_number)}
+                        onClick={() => setConfirmDeleteOrder(order)}
                         disabled={deletingId === (order.id || order.order_number)}
                         style={{
                           padding: '4px 8px',
@@ -294,6 +329,7 @@ export default function AdminOrdersTable({ initialOrders = [] }) {
                           border: 'none',
                           cursor: 'pointer',
                         }}
+                        title="Видалити замовлення"
                       >
                         ✕
                       </button>
@@ -318,12 +354,12 @@ export default function AdminOrdersTable({ initialOrders = [] }) {
           style={{
             position: 'fixed',
             inset: 0,
-            backgroundColor: 'rgba(0,0,0,0.65)',
+            background: 'rgba(0,0,0,0.65)',
             backdropFilter: 'blur(6px)',
-            zIndex: 9999,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            zIndex: 1000,
             padding: 20,
           }}
           onClick={() => setSelectedOrder(null)}
@@ -332,26 +368,26 @@ export default function AdminOrdersTable({ initialOrders = [] }) {
             style={{
               background: '#fff',
               borderRadius: 20,
+              padding: 28,
               maxWidth: 580,
               width: '100%',
               maxHeight: '90vh',
               overflowY: 'auto',
-              padding: '28px 24px',
               boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
-              position: 'relative',
             }}
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Modal Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, borderBottom: '1px solid #f0f0f0', paddingBottom: 16 }}>
               <div>
-                <span style={{ fontSize: 12, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
-                  Замовлення
+                <span style={{ fontSize: 12, color: '#6b7280', textTransform: 'uppercase', fontWeight: 700 }}>
+                  Деталі замовлення
                 </span>
-                <h3 style={{ fontSize: '1.4rem', fontWeight: 800, margin: '2px 0 0 0', color: 'var(--primary, #606c38)' }}>
-                  {selectedOrder.order_number}
+                <h3 style={{ fontSize: 24, fontWeight: 800, margin: '2px 0 0', color: 'var(--primary, #606c38)' }}>
+                  #{selectedOrder.order_number}
                 </h3>
-                <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>
-                  Створено: {selectedOrder.created_at?.slice(0, 16).replace('T', ' ')}
+                <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>
+                  Створено: {selectedOrder.created_at}
                 </div>
               </div>
               <button
@@ -363,8 +399,8 @@ export default function AdminOrdersTable({ initialOrders = [] }) {
                   borderRadius: '50%',
                   width: 32,
                   height: 32,
-                  cursor: 'pointer',
                   fontSize: 16,
+                  cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -374,57 +410,49 @@ export default function AdminOrdersTable({ initialOrders = [] }) {
               </button>
             </div>
 
-            {/* Customer Details */}
-            <div style={{ background: '#f9fafb', borderRadius: 12, padding: '14px 16px', marginBottom: 18 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#4b5563', textTransform: 'uppercase', marginBottom: 8 }}>
-                👤 Дані клієнта
+            {/* Customer & Delivery Card */}
+            <div style={{ background: '#f9fafb', borderRadius: 12, padding: 16, marginBottom: 20, fontSize: 13, lineHeight: 1.6 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8, color: '#1f2937' }}>
+                👤 Інформація про клієнта та доставку
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 13 }}>
-                <div><strong>Ім'я:</strong> {selectedOrder.customer_name}</div>
-                <div>
-                  <strong>Телефон:</strong>{' '}
-                  <a href={`tel:${selectedOrder.customer_phone}`} style={{ color: 'var(--primary, #606c38)', fontWeight: 600 }}>
-                    {selectedOrder.customer_phone}
-                  </a>
-                </div>
-                {selectedOrder.customer_email && (
-                  <div style={{ gridColumn: '1 / -1' }}>
-                    <strong>Email:</strong> {selectedOrder.customer_email}
-                  </div>
-                )}
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <strong>Спосіб доставки:</strong> {getDeliveryLabel(selectedOrder.delivery_method)}
-                </div>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <strong>Адреса / Відділення:</strong>{' '}
-                  {selectedOrder.delivery_city ? `${selectedOrder.delivery_city}, ` : ''}
-                  {selectedOrder.delivery_address || '—'}
-                </div>
-                {selectedOrder.notes && (
-                  <div style={{ gridColumn: '1 / -1', background: '#fef3c7', padding: '6px 10px', borderRadius: 8, color: '#92400e' }}>
-                    <strong>Коментар клієнта:</strong> {selectedOrder.notes}
-                  </div>
-                )}
+              <div><strong>Клієнт:</strong> {selectedOrder.customer_name}</div>
+              <div><strong>Телефон:</strong> <a href={`tel:${selectedOrder.customer_phone}`} style={{ color: 'var(--primary, #606c38)', fontWeight: 600 }}>{selectedOrder.customer_phone}</a></div>
+              {selectedOrder.customer_email && (
+                <div><strong>Email:</strong> {selectedOrder.customer_email}</div>
+              )}
+              <div style={{ marginTop: 6 }}>
+                <strong>Спосіб доставки:</strong> {getDeliveryLabel(selectedOrder.delivery_method)}
               </div>
+              <div>
+                <strong>Адреса доставки:</strong> {selectedOrder.delivery_city ? `${selectedOrder.delivery_city}, ` : ''}{selectedOrder.delivery_address || '—'}
+              </div>
+              <div>
+                <strong>Спосіб оплати:</strong> {selectedOrder.payment_method === 'card' ? '💳 Онлайн / Картка' : '💵 Післяплата'}
+              </div>
+              {selectedOrder.notes && (
+                <div style={{ marginTop: 8, background: '#fef3c7', padding: '8px 12px', borderRadius: 8, color: '#92400e' }}>
+                  <strong>Коментар до замовлення:</strong>
+                  <p style={{ margin: '2px 0 0' }}>{selectedOrder.notes}</p>
+                </div>
+              )}
             </div>
 
-            {/* Items List */}
+            {/* Ordered Items List */}
             <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#4b5563', textTransform: 'uppercase', marginBottom: 10 }}>
-                🛍️ Товари у замовленні ({selectedOrder.items?.length || 0})
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: '#1f2937' }}>
+                📦 Товари у замовленні ({selectedOrder.items?.length || 0})
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {selectedOrder.items?.map((item, idx) => (
                   <div
                     key={idx}
                     style={{
                       display: 'flex',
-                      alignItems: 'center',
                       justifyContent: 'space-between',
-                      padding: '10px 12px',
-                      border: '1px solid #e5e7eb',
+                      alignItems: 'center',
+                      padding: 10,
                       borderRadius: 10,
-                      gap: 12,
+                      background: '#f9fafb',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
@@ -451,7 +479,7 @@ export default function AdminOrdersTable({ initialOrders = [] }) {
             </div>
 
             {/* Total and Status change */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '2px dashed #e5e7eb', paddingTop: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '2px dashed #e5e7eb', paddingTop: 16, flexWrap: 'wrap', gap: 12 }}>
               <div>
                 <div style={{ fontSize: 12, color: '#6b7280' }}>Загальна сума до сплати:</div>
                 <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--primary, #606c38)' }}>
@@ -459,22 +487,110 @@ export default function AdminOrdersTable({ initialOrders = [] }) {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 600 }}>Статус:</span>
-                <select
-                  value={selectedOrder.status || 'pending'}
-                  onChange={(e) => {
-                    handleStatusChange(selectedOrder.id || selectedOrder.order_number, e.target.value);
-                    setSelectedOrder((prev) => ({ ...prev, status: e.target.value }));
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteOrder(selectedOrder)}
+                  style={{
+                    padding: '7px 12px',
+                    borderRadius: 8,
+                    background: '#fee2e2',
+                    color: '#b91c1c',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    fontSize: 13,
                   }}
-                  style={{ padding: '6px 12px', borderRadius: 8, fontWeight: 600, fontSize: 13 }}
                 >
-                  <option value="pending">🔔 Новий</option>
-                  <option value="processing">⏳ В обробці</option>
-                  <option value="completed">✓ Виконано</option>
-                  <option value="cancelled">✕ Скасовано</option>
-                </select>
+                  Видалити замовлення
+                </button>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>Статус:</span>
+                  <select
+                    value={selectedOrder.status || 'pending'}
+                    onChange={(e) => {
+                      handleStatusChange(selectedOrder.id || selectedOrder.order_number, e.target.value);
+                      setSelectedOrder((prev) => ({ ...prev, status: e.target.value }));
+                    }}
+                    style={{ padding: '6px 12px', borderRadius: 8, fontWeight: 600, fontSize: 13 }}
+                  >
+                    <option value="pending">🔔 Новий</option>
+                    <option value="processing">⏳ В обробці</option>
+                    <option value="completed">✓ Виконано</option>
+                    <option value="cancelled">✕ Скасовано</option>
+                  </select>
+                </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Custom Delete Confirmation Modal ── */}
+      {confirmDeleteOrder && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000,
+            padding: 20,
+          }}
+          onClick={() => setConfirmDeleteOrder(null)}
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: 16,
+              padding: 24,
+              maxWidth: 440,
+              width: '100%',
+              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: '#111827' }}>
+              Видалити це замовлення?
+            </h3>
+            <p style={{ color: '#4b5563', fontSize: 14, lineHeight: 1.5, marginBottom: 20 }}>
+              Ви дійсно бажаєте видалити замовлення <strong>#{confirmDeleteOrder.order_number}</strong> клієнта <strong>{confirmDeleteOrder.customer_name}</strong> на суму <strong>{Number(confirmDeleteOrder.total_amount || 0).toFixed(2)} ₴</strong>?
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteOrder(null)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 8,
+                  border: '1px solid #d1d5db',
+                  background: '#fff',
+                  cursor: 'pointer',
+                  fontWeight: 500,
+                }}
+              >
+                Скасувати
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDelete(confirmDeleteOrder)}
+                disabled={deletingId === (confirmDeleteOrder.id || confirmDeleteOrder.order_number)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: '#dc2626',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                }}
+              >
+                {deletingId === (confirmDeleteOrder.id || confirmDeleteOrder.order_number) ? 'Видалення...' : 'Видалити'}
+              </button>
             </div>
           </div>
         </div>

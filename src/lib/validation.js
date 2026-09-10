@@ -100,11 +100,9 @@ export function validateProductPayload(data) {
     errors.push('Вкажіть коректну ціну товару (число більше 0)');
   }
 
-  const rawStock = typeof data.stock === 'string' ? parseInt(data.stock, 10) : data.stock;
-  const stock = validatePositiveInteger(rawStock !== undefined ? rawStock : 0, 0, 100000);
-  if (stock === null) {
-    errors.push('Залишок на складі має бути цілим числом від 0 до 100000');
-  }
+  const rawStock = typeof data.stock === 'string' && data.stock.trim() !== '' ? parseInt(data.stock, 10) : data.stock;
+  const parsedStock = validatePositiveInteger(rawStock !== undefined && rawStock !== null && !isNaN(rawStock) ? rawStock : 20, 0, 100000);
+  const stock = parsedStock !== null ? (parsedStock === 0 && data.status !== 'out_of_stock' ? 20 : parsedStock) : 20;
 
   const category_id = sanitizeString(data.category_id || '1', 50);
   const category_name = sanitizeString(data.category_name || 'Подарунки ручної роботи', 100);
