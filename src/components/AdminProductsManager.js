@@ -329,12 +329,18 @@ export default function AdminProductsManager({ initialProducts }) {
     if (!confirm('Видалити цей товар з каталогу?')) return;
     setDeletingId(id);
     try {
-      const res = await fetch(`/api/products?id=${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/products?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setProducts((prev) => prev.filter((p) => p.id !== id && p.sku !== id));
+        setSuccessMsg('Товар успішно видалено з каталогу!');
+        setTimeout(() => setSuccessMsg(''), 4000);
+      } else {
+        alert(data.error || 'Помилка при видаленні товару з бази даних');
       }
     } catch (err) {
       console.error(err);
+      alert('Помилка з’єднання при видаленні товару');
     } finally {
       setDeletingId(null);
     }

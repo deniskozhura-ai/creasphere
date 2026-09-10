@@ -156,7 +156,8 @@ export async function PUT(request) {
     }
 
     if (isSupabaseAdminConfigured) {
-      const { data: dbUpdated, error } = await supabaseAdmin
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      let query = supabaseAdmin
         .from('products')
         .update({
           name: sanitized.name,
@@ -168,10 +169,15 @@ export async function PUT(request) {
           description: sanitized.description,
           images: sanitized.images,
           updated_at: new Date().toISOString(),
-        })
-        .or(`id.eq.${id},sku.eq.${id}`)
-        .select()
-        .single();
+        });
+
+      if (isUuid) {
+        query = query.eq('id', id);
+      } else {
+        query = query.or(`sku.eq.${id},slug.eq.${id}`);
+      }
+
+      const { data: dbUpdated, error } = await query.select().single();
 
       if (error) {
         console.error('Supabase product update error:', error.message);
@@ -219,10 +225,16 @@ export async function DELETE(request) {
     }
 
     if (isSupabaseAdminConfigured) {
-      const { error } = await supabaseAdmin
-        .from('products')
-        .delete()
-        .or(`id.eq.${id},sku.eq.${id}`);
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      let query = supabaseAdmin.from('products').delete();
+
+      if (isUuid) {
+        query = query.eq('id', id);
+      } else {
+        query = query.or(`sku.eq.${id},slug.eq.${id}`);
+      }
+
+      const { error } = await query;
 
       if (error) {
         console.error('Supabase product delete error:', error.message);

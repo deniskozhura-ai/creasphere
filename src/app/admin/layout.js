@@ -55,9 +55,10 @@ export default function AdminLayout({ children }) {
     { href: '/admin', label: 'Головна панель', icon: '📊' },
     { href: '/admin/products', label: 'Товари', icon: '🧸' },
     { href: '/admin/categories', label: 'Категорії', icon: '🏷️' },
+    { href: '/admin/workshops', label: 'Майстер-класи', icon: '🎨' },
     { href: '/admin/orders', label: 'Замовлення', icon: '📦' },
     { href: '/admin/custom-orders', label: 'Кастомні вироби', icon: '✨' },
-    { href: '/admin/bookings', label: 'Записи на МК', icon: '🎨' },
+    { href: '/admin/bookings', label: 'Записи на МК', icon: '📋' },
     { href: '/admin/space', label: 'Оренда простору', icon: '🏛️' },
     { href: '/shop', label: 'Перейти в магазин', icon: '🌐' },
   ];

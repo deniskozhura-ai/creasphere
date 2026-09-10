@@ -281,10 +281,16 @@ export async function PATCH(request) {
     }
 
     if (isSupabaseAdminConfigured) {
-      const { error } = await supabaseAdmin
-        .from('orders')
-        .update({ status })
-        .or(`id.eq.${id},order_number.eq.${id}`);
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      let query = supabaseAdmin.from('orders').update({ status });
+
+      if (isUuid) {
+        query = query.eq('id', id);
+      } else {
+        query = query.eq('order_number', id);
+      }
+
+      const { error } = await query;
 
       if (error) {
         console.error('Supabase order status update error:', error.message);
@@ -315,10 +321,16 @@ export async function DELETE(request) {
     }
 
     if (isSupabaseAdminConfigured) {
-      const { error } = await supabaseAdmin
-        .from('orders')
-        .delete()
-        .or(`id.eq.${id},order_number.eq.${id}`);
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      let query = supabaseAdmin.from('orders').delete();
+
+      if (isUuid) {
+        query = query.eq('id', id);
+      } else {
+        query = query.eq('order_number', id);
+      }
+
+      const { error } = await query;
 
       if (error) {
         console.error('Supabase order delete error:', error.message);

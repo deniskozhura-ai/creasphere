@@ -180,16 +180,22 @@ export async function PUT(request) {
     const slug = customSlug ? slugify(customSlug) : slugify(name);
 
     if (isSupabaseAdminConfigured) {
-      const { data: dbCategory, error } = await supabaseAdmin
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      let query = supabaseAdmin
         .from('categories')
         .update({
           name,
           slug,
           description,
-        })
-        .or(`id.eq.${id},slug.eq.${id}`)
-        .select()
-        .single();
+        });
+
+      if (isUuid) {
+        query = query.eq('id', id);
+      } else {
+        query = query.eq('slug', id);
+      }
+
+      const { data: dbCategory, error } = await query.select().single();
 
       if (error) {
         console.error('Supabase category update error:', error.message);
@@ -242,10 +248,16 @@ export async function DELETE(request) {
     }
 
     if (isSupabaseAdminConfigured) {
-      const { error } = await supabaseAdmin
-        .from('categories')
-        .delete()
-        .or(`id.eq.${id},slug.eq.${id}`);
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      let query = supabaseAdmin.from('categories').delete();
+
+      if (isUuid) {
+        query = query.eq('id', id);
+      } else {
+        query = query.eq('slug', id);
+      }
+
+      const { error } = await query;
 
       if (error) {
         console.error('Supabase category delete error:', error.message);
