@@ -7,31 +7,106 @@ import { getProducts } from '@/lib/products-store';
 
 export const dynamic = 'force-dynamic';
 
-export async function generateMetadata({ params }) {
-  const { slug } = await params;
-  let product = null;
+async function fetchProduct(slugParam) {
+  if (!slugParam) return null;
+
+  let decodedSlug = slugParam;
+  try {
+    decodedSlug = decodeURIComponent(slugParam);
+  } catch {
+    // Keep slugParam if malformed
+  }
+
+  const isUuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(decodedSlug) ||
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slugParam);
 
   if (isSupabaseConfigured) {
     try {
-      const { data } = await supabase
+      if (isUuid) {
+        const uuidVal = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(decodedSlug)
+          ? decodedSlug
+          : slugParam;
+        const { data } = await supabase
+          .from('products')
+          .select('*, categories(name, slug)')
+          .eq('id', uuidVal)
+          .maybeSingle();
+
+        if (data) {
+          return {
+            ...data,
+            category_name: data.categories?.name || null,
+          };
+        }
+      }
+
+      // 1. Try decoded slug (e.g. 'картина-осени')
+      let { data } = await supabase
         .from('products')
-        .select('name, description, images')
-        .eq('slug', slug)
-        .single();
-      product = data;
+        .select('*, categories(name, slug)')
+        .eq('slug', decodedSlug)
+        .maybeSingle();
+
+      // 2. If not found and decodedSlug differs from slugParam, try raw slugParam
+      if (!data && decodedSlug !== slugParam) {
+        const res = await supabase
+          .from('products')
+          .select('*, categories(name, slug)')
+          .eq('slug', slugParam)
+          .maybeSingle();
+        data = res.data;
+      }
+
+      // 3. If still not found, try matching by SKU
+      if (!data) {
+        const res = await supabase
+          .from('products')
+          .select('*, categories(name, slug)')
+          .eq('sku', decodedSlug)
+          .maybeSingle();
+        data = res.data;
+      }
+
+      if (data) {
+        return {
+          ...data,
+          category_name: data.categories?.name || null,
+        };
+      }
     } catch (e) {
-      console.warn('Supabase metadata error:', e.message);
+      console.warn('Supabase product query error:', e.message);
     }
   }
 
-  if (!product) {
-    const list = getProducts();
-    product = list.find((p) => p.slug === slug || p.id === slug);
+  // Fallback to local store or demo products
+  const list = getProducts();
+  let fallback = list.find(
+    (p) =>
+      p.slug === decodedSlug ||
+      p.slug === slugParam ||
+      p.id === decodedSlug ||
+      p.id === slugParam ||
+      p.sku === decodedSlug
+  );
+
+  if (!fallback) {
+    fallback = DEMO_PRODUCTS.find(
+      (p) =>
+        p.slug === decodedSlug ||
+        p.slug === slugParam ||
+        p.id === decodedSlug ||
+        p.id === slugParam ||
+        p.sku === decodedSlug
+    );
   }
 
-  if (!product) {
-    product = DEMO_PRODUCTS.find((p) => p.slug === slug || p.id === slug);
-  }
+  return fallback || null;
+}
+
+export async function generateMetadata({ params }) {
+  const { slug } = await params;
+  const product = await fetchProduct(slug);
 
   if (!product) {
     return {
@@ -52,41 +127,7 @@ export async function generateMetadata({ params }) {
 
 export default async function ProductPage({ params }) {
   const { slug } = await params;
-  let product = null;
-
-  if (isSupabaseConfigured) {
-    try {
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
-      let query = supabase
-        .from('products')
-        .select('*, categories(name, slug)');
-
-      if (isUuid) {
-        query = query.eq('id', slug);
-      } else {
-        query = query.eq('slug', slug);
-      }
-
-      const { data } = await query.maybeSingle();
-      if (data) {
-        product = {
-          ...data,
-          category_name: data.categories?.name || null,
-        };
-      }
-    } catch (e) {
-      console.warn('Supabase product error:', e.message);
-    }
-  }
-
-  if (!product && !isSupabaseConfigured) {
-    const list = getProducts();
-    product = list.find((p) => p.slug === slug || p.id === slug);
-  }
-
-  if (!product && !isSupabaseConfigured) {
-    product = DEMO_PRODUCTS.find((p) => p.slug === slug || p.id === slug);
-  }
+  const product = await fetchProduct(slug);
 
   if (!product) {
     notFound();
