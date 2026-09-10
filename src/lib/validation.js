@@ -20,6 +20,22 @@ export function sanitizeString(val, maxLength = 255) {
 }
 
 /**
+ * Sanitizes image URLs or safe image data URIs (WebP, JPEG, PNG, GIF)
+ * Allows data:image/ for compressed photo uploads while preventing XSS
+ */
+export function sanitizeImageUrl(val, maxLength = 500000) {
+  if (typeof val !== 'string') return '';
+  const trimmed = val.trim();
+  if (trimmed.startsWith('data:image/')) {
+    if (/^data:image\/(jpeg|png|webp|gif);base64,[A-Za-z0-9+/=\s]+$/.test(trimmed)) {
+      return trimmed.slice(0, maxLength);
+    }
+    return '';
+  }
+  return sanitizeString(trimmed, maxLength);
+}
+
+/**
  * Validates Ukrainian or general international telephone numbers
  */
 export function validatePhone(phone) {
@@ -78,12 +94,14 @@ export function validateProductPayload(data) {
     errors.push('Назва товару обов’язкова (від 2 до 150 символів)');
   }
 
-  const price = validatePrice(data.price, 0.01, 1000000);
+  const rawPrice = typeof data.price === 'string' ? parseFloat(data.price) : data.price;
+  const price = validatePrice(rawPrice, 0.01, 1000000);
   if (price === null) {
     errors.push('Вкажіть коректну ціну товару (число більше 0)');
   }
 
-  const stock = validatePositiveInteger(data.stock !== undefined ? data.stock : 0, 0, 100000);
+  const rawStock = typeof data.stock === 'string' ? parseInt(data.stock, 10) : data.stock;
+  const stock = validatePositiveInteger(rawStock !== undefined ? rawStock : 0, 0, 100000);
   if (stock === null) {
     errors.push('Залишок на складі має бути цілим числом від 0 до 100000');
   }
@@ -104,11 +122,12 @@ export function validateProductPayload(data) {
   if (Array.isArray(data.images)) {
     images = data.images
       .filter((img) => typeof img === 'string' && img.trim().length > 0)
-      .map((img) => sanitizeString(img, 500000))
+      .map((img) => sanitizeImageUrl(img, 500000))
+      .filter(Boolean)
       .slice(0, 10);
   }
   if (images.length === 0 && data.image && typeof data.image === 'string') {
-    const single = sanitizeString(data.image, 500000);
+    const single = sanitizeImageUrl(data.image, 500000);
     if (single) images = [single];
   }
   if (images.length === 0) {

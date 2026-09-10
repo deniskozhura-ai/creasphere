@@ -58,8 +58,11 @@ export default function AdminProductsManager({ initialProducts }) {
   const [deletingId, setDeletingId] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [customUrlInput, setCustomUrlInput] = useState('');
+  const [modalError, setModalError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
   const fileInputRef = useRef(null);
+  const modalContentRef = useRef(null);
 
   const defaultForm = {
     name: '',
@@ -107,6 +110,7 @@ export default function AdminProductsManager({ initialProducts }) {
 
   const handleOpenAddModal = () => {
     setEditingProduct(null);
+    setModalError('');
     const firstCat = categories[0];
     setForm({
       ...defaultForm,
@@ -121,6 +125,7 @@ export default function AdminProductsManager({ initialProducts }) {
 
   const handleOpenEditModal = (item) => {
     setEditingProduct(item);
+    setModalError('');
     const existingImages = Array.isArray(item.images) && item.images.length > 0
       ? item.images
       : [item.image || '/gift_collection.webp'];
@@ -243,10 +248,30 @@ export default function AdminProductsManager({ initialProducts }) {
   // Submit Handler (Create or Update)
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.price) {
-      alert('Будь ласка, вкажіть назву та ціну товару');
+    setModalError('');
+
+    if (!form.name.trim()) {
+      setModalError('Будь ласка, вкажіть назву товару');
+      modalContentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
+
+    const priceNum = parseFloat(form.price);
+    if (isNaN(priceNum) || priceNum <= 0) {
+      setModalError('Будь ласка, вкажіть коректну ціну товару (число більше 0)');
+      modalContentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    const stockNum = parseInt(form.stock, 10);
+    const validStock = isNaN(stockNum) || stockNum < 0 ? 0 : stockNum;
+
+    const payload = {
+      ...form,
+      name: form.name.trim(),
+      price: priceNum,
+      stock: validStock,
+    };
 
     setLoading(true);
     try {
@@ -257,7 +282,7 @@ export default function AdminProductsManager({ initialProducts }) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             id: editingProduct.id,
-            ...form,
+            ...payload,
           }),
         });
         const data = await res.json();
@@ -266,16 +291,18 @@ export default function AdminProductsManager({ initialProducts }) {
             prev.map((p) => (p.id === editingProduct.id ? data.product : p))
           );
           setIsModalOpen(false);
-          alert('Товар успішно оновлено!');
+          setSuccessMsg(`Товар «${data.product.name}» успішно оновлено!`);
+          setTimeout(() => setSuccessMsg(''), 4000);
         } else {
-          alert(data.error || 'Помилка при оновленні товару');
+          setModalError(data.error || 'Помилка при оновленні товару');
+          modalContentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
         }
       } else {
         // CREATE new product
         const res = await fetch('/api/products', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(form),
+          body: JSON.stringify(payload),
         });
 
         const data = await res.json();
@@ -283,13 +310,16 @@ export default function AdminProductsManager({ initialProducts }) {
           setProducts((prev) => [data.product, ...prev]);
           setIsModalOpen(false);
           setForm(defaultForm);
-          alert('Новий товар успішно додано до каталогу!');
+          setSuccessMsg(`Новий товар «${data.product.name}» успішно додано до каталогу!`);
+          setTimeout(() => setSuccessMsg(''), 4000);
         } else {
-          alert(data.error || 'Помилка при додаванні товару');
+          setModalError(data.error || 'Помилка при додаванні товару');
+          modalContentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
         }
       }
     } catch (err) {
-      alert('Не вдалося зберегти товар: ' + err.message);
+      setModalError('Не вдалося зберегти товар: ' + err.message);
+      modalContentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setLoading(false);
     }
@@ -319,6 +349,27 @@ export default function AdminProductsManager({ initialProducts }) {
 
   return (
     <div>
+      {/* Success Notification Banner */}
+      {successMsg && (
+        <div
+          style={{
+            padding: '12px 18px',
+            borderRadius: 10,
+            background: '#ecfdf5',
+            border: '1px solid #10b981',
+            color: '#065f46',
+            marginBottom: 20,
+            fontWeight: 500,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+          }}
+        >
+          <span>✅</span>
+          <span>{successMsg}</span>
+        </div>
+      )}
+
       {/* Header controls */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, gap: 16, flexWrap: 'wrap' }}>
         <input
@@ -489,6 +540,7 @@ export default function AdminProductsManager({ initialProducts }) {
           onClick={() => setIsModalOpen(false)}
         >
           <div
+            ref={modalContentRef}
             style={{
               background: '#fff',
               borderRadius: 20,
@@ -527,6 +579,26 @@ export default function AdminProductsManager({ initialProducts }) {
             </div>
 
             <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              {modalError && (
+                <div
+                  style={{
+                    gridColumn: '1 / -1',
+                    padding: '12px 16px',
+                    borderRadius: 10,
+                    background: '#fef2f2',
+                    border: '1px solid #ef4444',
+                    color: '#991b1b',
+                    fontSize: 14,
+                    fontWeight: 500,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                >
+                  <span>⚠️</span>
+                  <span>{modalError}</span>
+                </div>
+              )}
               <div style={{ gridColumn: '1 / -1' }}>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 5 }}>
                   Назва товару *
