@@ -22,7 +22,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Install dependencies
@@ -39,17 +39,18 @@ jobs:
           SERVER_PID=$!
 
           for i in $(seq 1 30); do
-            CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3001/api/products || echo "000")
-            if [ "$CODE" != "000" ]; then
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3001/api/products || true)
+            if [ "$CODE" = "200" ] || [ "$CODE" = "401" ] || [ "$CODE" = "503" ]; then
               echo "Dev server is ready with HTTP $CODE after ${i}s"
               break
             fi
             sleep 1
           done
 
-          if [ "$CODE" = "000" ]; then
-            echo "ERROR: Server failed to start within 30s!"
+          if [ "$CODE" != "200" ] && [ "$CODE" != "401" ] && [ "$CODE" != "503" ]; then
+            echo "ERROR: Server failed to start within 30s! (Last code: $CODE)"
             cat server.log
+            kill -9 $SERVER_PID 2>/dev/null || true
             exit 1
           fi
 
