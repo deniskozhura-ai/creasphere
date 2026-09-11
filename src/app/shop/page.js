@@ -5,6 +5,7 @@ import Pagination from '@/components/Pagination';
 import SortSelect from '@/components/SortSelect';
 import CustomOrderBanner from '@/components/CustomOrderBanner';
 import ShopProductGrid from '@/components/ShopProductGrid';
+import ShopCategoriesSidebar from '@/components/ShopCategoriesSidebar';
 import { DEMO_CATEGORIES } from '@/lib/demo-data';
 import { getProducts } from '@/lib/products-store';
 import { getCategories } from '@/lib/categories-store';
@@ -136,42 +137,7 @@ export default async function ShopPage({ searchParams }) {
 
       <div className="container">
         <div className="shop-layout">
-          <aside className="shop-sidebar">
-            <div className="shop-sidebar__section">
-              <h3 className="shop-sidebar__title">Категорії</h3>
-              <ul className="shop-sidebar__list">
-                <li>
-                  <Link href="/shop" className={!category ? 'active' : ''}>
-                    Усі товари
-                  </Link>
-                </li>
-                {(categories || []).filter(c => !c.parent_id).map(cat => (
-                  <li key={cat.id}>
-                    <Link
-                      href={`/shop?category=${cat.slug}`}
-                      className={category === cat.slug ? 'active' : ''}
-                    >
-                      {cat.name}
-                    </Link>
-                    {(categories || []).filter(c => c.parent_id === cat.id).length > 0 && (
-                      <ul className="shop-sidebar__list" style={{ paddingLeft: 16, marginTop: 4 }}>
-                        {(categories || []).filter(c => c.parent_id === cat.id).map(sub => (
-                          <li key={sub.id}>
-                            <Link
-                              href={`/shop?category=${sub.slug}`}
-                              className={category === sub.slug ? 'active' : ''}
-                            >
-                              {sub.name}
-                            </Link>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </aside>
+          <ShopCategoriesSidebar categories={categories} currentCategory={category} />
 
           <div>
             <CustomOrderBanner />
