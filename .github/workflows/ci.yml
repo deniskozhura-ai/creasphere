@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    env:
+      ADMIN_PASSWORD: ci_test_admin_password_2026
+      NEXT_PUBLIC_SUPABASE_URL: https://ci-mock.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci_mock_anon_key
+      TEST_BASE_URL: http://localhost:3001
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Start local test server
+        run: |
+          npx next dev -p 3001 &
+          node -e "
+            const start = Date.now();
+            async function check() {
+              while (Date.now() - start < 60000) {
+                try {
+                  const res = await fetch('http://localhost:3001/api/products');
+                  if (res.status === 200 || res.status === 401) { process.exit(0); }
+                } catch (e) {}
+                await new Promise(r => setTimeout(r, 1000));
+              }
+              process.exit(1);
+            }
+            check();
+          "
+
+      - name: Run security tests
+        run: npm test
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Run production build
+        run: npm run build
+
+      - name: Audit package dependencies
+        run: npm audit --audit-level=high

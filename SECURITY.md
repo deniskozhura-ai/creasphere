@@ -24,7 +24,7 @@
 
 ## 2. Авторизація та матриця доступу до API
 
-Всі мутації та приватні дані захищені на рівні сервера за допомогою хелпера `requireAdmin(request)` у [`src/lib/auth.js`](file:///d:/090909/creasphere-v2/src/lib/auth.js).
+Всі мутації та приватні дані захищені на рівні сервера за допомогою хелпера `requireAdmin(request)` у [`src/lib/auth.js`](src/lib/auth.js).
 
 | Ендпоінт | Метод | Доступ | Опис |
 |---|---|---|---|
@@ -61,7 +61,7 @@
 
 ## 4. Обмеження частоти запитів (Rate Limiting)
 
-Для захисту від автоматизованих атак (DDoS, брутфорс, спам-боти) налаштовано ковзний Rate Limiter ([`src/lib/rate-limit.js`](file:///d:/090909/creasphere-v2/src/lib/rate-limit.js)):
+Для захисту від автоматизованих атак (DDoS, брутфорс, спам-боти) налаштовано ковзний Rate Limiter ([`src/lib/rate-limit.js`](src/lib/rate-limit.js)):
 - **Вхід в адмінку (`admin-login`)**: не більше 5 спроб на 15 хвилин з однієї IP-адреси (захист від перебору паролів).
 - **Створення замовлень (`create-order`)**: не більше 5 замовлень на 10 хвилин з однієї IP-адреси.
 - **Публічні заявки (МК, оренда, кастомні вироби)**: не більше 5 запитів на 10 хвилин.
@@ -71,7 +71,7 @@
 
 ## 5. Валідація та захист від XSS / Mass Assignment
 
-Усі вхідні дані проходять централізовану обробку через [`src/lib/validation.js`](file:///d:/090909/creasphere-v2/src/lib/validation.js):
+Усі вхідні дані проходять централізовану обробку через [`src/lib/validation.js`](src/lib/validation.js):
 - Видалення HTML-тегів та небезпечних протоколів (`javascript:`, `data:`).
 - Обмеження максимальної довжини рядків (захист від вичерпання пам'яті).
 - Сувора типізація чисел (заборона `NaN`, `Infinity`, від'ємних значень).
@@ -81,7 +81,7 @@
 
 ## 6. HTTP Заголовки безпеки
 
-У [`next.config.mjs`](file:///d:/090909/creasphere-v2/next.config.mjs) налаштовано обов'язкові заголовки:
+У [`next.config.mjs`](next.config.mjs) налаштовано обов'язкові заголовки:
 - `Strict-Transport-Security`: форсування HTTPS на 2 роки.
 - `X-Frame-Options: SAMEORIGIN`: захист від Clickjacking.
 - `X-Content-Type-Options: nosniff`: захист від MIME-sniffing.
