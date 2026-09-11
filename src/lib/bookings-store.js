@@ -5,50 +5,7 @@ import os from 'os';
 const BUNDLE_FILE = path.join(process.cwd(), 'src', 'data', 'workshop_bookings.json');
 const WRITABLE_FILE = path.join(os.tmpdir(), 'creasphere_workshop_bookings.json');
 
-const INITIAL_BOOKINGS = [
-  {
-    id: 'wb-1',
-    booking_number: 'MK-849202',
-    customer_name: 'Марія Коваленко',
-    customer_phone: '+380 50 000 0004',
-    customer_email: 'mariya.demo@example.com',
-    workshop_title: 'Гончарство та кераміка',
-    participants_count: 2,
-    preferred_date: '2026-09-12',
-    preferred_time: '14:00',
-    notes: 'Хочемо зліпити парні чашки до річниці',
-    status: 'new',
-    created_at: '2026-09-09 11:20',
-  },
-  {
-    id: 'wb-2',
-    booking_number: 'MK-849185',
-    customer_name: 'Олександр Бойко',
-    customer_phone: '+380 50 000 0005',
-    customer_email: 'boyko.demo@example.com',
-    workshop_title: 'Дитячі свята та дні народження',
-    participants_count: 6,
-    preferred_date: '2026-09-15',
-    preferred_time: '11:30',
-    notes: 'День народження доньки 8 років, майстер-клас з розпису або мозаїки',
-    status: 'confirmed',
-    created_at: '2026-09-08 16:45',
-  },
-  {
-    id: 'wb-3',
-    booking_number: 'MK-849140',
-    customer_name: 'Тетяна Мельник',
-    customer_phone: '+380 50 000 0006',
-    customer_email: 'tanya.demo@example.com',
-    workshop_title: 'Ароматичні соєві свічки',
-    participants_count: 1,
-    preferred_date: '2026-09-10',
-    preferred_time: '16:00',
-    notes: 'Індивідуальне заняття',
-    status: 'completed',
-    created_at: '2026-09-07 10:15',
-  },
-];
+const INITIAL_BOOKINGS = [];
 
 export function getDemoBookings() {
   if (globalThis.__creasphere_bookings && Array.isArray(globalThis.__creasphere_bookings)) {
@@ -59,7 +16,7 @@ export function getDemoBookings() {
     if (fs.existsSync(WRITABLE_FILE)) {
       const content = fs.readFileSync(WRITABLE_FILE, 'utf-8');
       const parsed = JSON.parse(content);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         globalThis.__creasphere_bookings = parsed;
         return parsed;
       }
@@ -70,7 +27,7 @@ export function getDemoBookings() {
     if (fs.existsSync(BUNDLE_FILE)) {
       const content = fs.readFileSync(BUNDLE_FILE, 'utf-8');
       const parsed = JSON.parse(content);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         globalThis.__creasphere_bookings = parsed;
         return parsed;
       }

@@ -262,6 +262,10 @@ async function runAllSecurityTests() {
   // 6 & 7. CLIENT-SIDE PRICE & TOTAL MANIPULATION -> REJECTED / SERVER PRICE ENFORCED
   // -----------------------------------------------------------------
   console.log('\n--- Test 6 & 7: Price & Total Manipulation Rejected/Ignored ---');
+  const cleanupOrders = [];
+  const cleanupWorkshops = [];
+  const cleanupCustom = [];
+  const cleanupSpace = [];
   let placedOrderNumber = null;
   let testProductId = null;
   try {
@@ -303,6 +307,7 @@ async function runAllSecurityTests() {
     assert(res.status === 200 && data.success, 'Order created successfully with server-authoritative pricing');
     assert(data.orderNumber && typeof data.orderNumber === 'string', `Valid orderNumber returned: ${data.orderNumber}`);
     placedOrderNumber = data.orderNumber;
+    if (data.orderNumber) cleanupOrders.push(data.orderNumber);
 
     // Verify through Admin endpoint that the server recorded the real catalog total (1500 UAH), not 1.0 UAH
     const adminOrdersRes = await apiFetch('/api/orders', {
@@ -451,6 +456,14 @@ async function runAllSecurityTests() {
       );
 
       const responses = await Promise.all(concurrentRequests);
+      for (const r of responses) {
+        if (r.status === 200) {
+          try {
+            const d = await r.clone().json();
+            if (d.orderNumber) cleanupOrders.push(d.orderNumber);
+          } catch (_) {}
+        }
+      }
       const statuses = responses.map((r) => r.status);
       const successCount = statuses.filter((s) => s === 200).length;
       const rejectedCount = statuses.filter((s) => s === 400).length;
@@ -582,6 +595,7 @@ async function runAllSecurityTests() {
     });
     const data = await res.json();
     assert(res.status === 200 && data.success, 'Order created with whitelisted schema');
+    if (data.orderNumber) cleanupOrders.push(data.orderNumber);
 
     // Verify injected fields were not assigned as completed
     const adminOrdersRes = await apiFetch('/api/orders', {
@@ -666,6 +680,7 @@ async function runAllSecurityTests() {
     });
     const orderData = await orderRes.json();
     assert(orderRes.status === 200, 'Order created');
+    if (orderData.orderNumber) cleanupOrders.push(orderData.orderNumber);
     assert(
       !orderData.customer_name && !orderData.customer_phone && !orderData.customer_email && !orderData.delivery_address,
       'POST /api/orders response does NOT leak customer PII (only orderNumber returned)'
@@ -688,6 +703,7 @@ async function runAllSecurityTests() {
       }),
     });
     const customData = await customRes.json();
+    if (customData.orderNumber) cleanupCustom.push(customData.orderNumber);
     assert(
       !customData.customer_name && !customData.customer_phone && !customData.order,
       'POST /api/custom-orders response does NOT leak customer PII'
@@ -705,6 +721,7 @@ async function runAllSecurityTests() {
       }),
     });
     const wsData = await wsRes.json();
+    if (wsData.bookingNumber) cleanupWorkshops.push(wsData.bookingNumber);
     assert(
       !wsData.customer_name && !wsData.customer_phone && !wsData.booking,
       'POST /api/workshops/book response does NOT leak customer PII'
@@ -723,6 +740,7 @@ async function runAllSecurityTests() {
       }),
     });
     const spaceData = await spaceRes.json();
+    if (spaceData.bookingNumber) cleanupSpace.push(spaceData.bookingNumber);
     assert(
       !spaceData.customer_name && !spaceData.customer_phone && !spaceData.booking,
       'POST /api/space-bookings response does NOT leak customer PII'
@@ -997,6 +1015,23 @@ async function runAllSecurityTests() {
     assert(false, `Test 28 failed: ${e.message}`);
   }
 
+
+  // -----------------------------------------------------------------
+  // CLEANUP: Purge all test orders and bookings created during testing
+  // -----------------------------------------------------------------
+  console.log('\n--- Cleaning up temporary test orders & bookings ---');
+  for (const num of cleanupOrders) {
+    try { await apiFetch(`/api/orders?id=${encodeURIComponent(num)}`, { method: 'DELETE', headers: { Cookie: adminCookie } }); } catch (_) {}
+  }
+  for (const num of cleanupWorkshops) {
+    try { await apiFetch(`/api/workshops/book?id=${encodeURIComponent(num)}`, { method: 'DELETE', headers: { Cookie: adminCookie } }); } catch (_) {}
+  }
+  for (const num of cleanupCustom) {
+    try { await apiFetch(`/api/custom-orders?id=${encodeURIComponent(num)}`, { method: 'DELETE', headers: { Cookie: adminCookie } }); } catch (_) {}
+  }
+  for (const num of cleanupSpace) {
+    try { await apiFetch(`/api/space-bookings?id=${encodeURIComponent(num)}`, { method: 'DELETE', headers: { Cookie: adminCookie } }); } catch (_) {}
+  }
 
   // -----------------------------------------------------------------
   // SUMMARY

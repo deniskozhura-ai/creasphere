@@ -17,34 +17,81 @@ export default function AdminDashboardClient({
   const [spaceBookings, setSpaceBookings] = useState(initialSpaceBookings);
 
   useEffect(() => {
+    try {
+      // Clean up legacy mock data that had mock ids from earlier builds
+      const cleanStore = (key, mockIdPrefixes) => {
+        try {
+          const items = JSON.parse(localStorage.getItem(key) || '[]');
+          if (Array.isArray(items)) {
+            const filtered = items.filter((i) => {
+              const id = String(i.id || i.order_number || i.booking_number || '');
+              return !mockIdPrefixes.some((p) => id.startsWith(p) || id.includes('849'));
+            });
+            localStorage.setItem(key, JSON.stringify(filtered));
+          }
+        } catch (e) {}
+      };
+      cleanStore('creasphere_workshop_bookings', ['wb-']);
+      cleanStore('creasphere_orders', ['ord-']);
+      cleanStore('creasphere_custom_orders_list', ['cst-']);
+      cleanStore('creasphere_space_bookings', ['sp-']);
+    } catch (e) {}
+
     const fetchLiveStats = async () => {
       try {
-        const [customRes, spaceRes] = await Promise.allSettled([
+        const [ordersRes, workshopsRes, customRes, spaceRes] = await Promise.allSettled([
+          fetch('/api/orders'),
+          fetch('/api/workshops/book'),
           fetch('/api/custom-orders'),
           fetch('/api/space-bookings'),
         ]);
 
-        if (customRes.status === 'fulfilled' && customRes.value.ok) {
-          const customData = await customRes.value.json();
-          if (Array.isArray(customData)) {
-            setCustomOrders(customData);
-            setStats((prev) => ({
-              ...prev,
-              customOrdersCount: customData.length,
-            }));
+        let ordersCount = 0;
+        let totalRevenue = 0;
+        if (ordersRes.status === 'fulfilled' && ordersRes.value.ok) {
+          const ordersData = await ordersRes.value.json();
+          if (Array.isArray(ordersData)) {
+            setRecentOrders(ordersData.slice(0, 5));
+            ordersCount = ordersData.length;
+            totalRevenue = ordersData.reduce((sum, o) => sum + (parseFloat(o.total_amount) || 0), 0);
           }
         }
 
+        let bookingsCount = 0;
+        if (workshopsRes.status === 'fulfilled' && workshopsRes.value.ok) {
+          const wbData = await workshopsRes.value.json();
+          if (Array.isArray(wbData)) {
+            setBookings(wbData.slice(0, 5));
+            bookingsCount = wbData.length;
+          }
+        }
+
+        let customOrdersCount = 0;
+        if (customRes.status === 'fulfilled' && customRes.value.ok) {
+          const customData = await customRes.value.json();
+          if (Array.isArray(customData)) {
+            setCustomOrders(customData.slice(0, 5));
+            customOrdersCount = customData.length;
+          }
+        }
+
+        let spaceBookingsCount = 0;
         if (spaceRes.status === 'fulfilled' && spaceRes.value.ok) {
           const spaceData = await spaceRes.value.json();
           if (Array.isArray(spaceData)) {
-            setSpaceBookings(spaceData);
-            setStats((prev) => ({
-              ...prev,
-              spaceBookingsCount: spaceData.length,
-            }));
+            setSpaceBookings(spaceData.slice(0, 5));
+            spaceBookingsCount = spaceData.length;
           }
         }
+
+        setStats((prev) => ({
+          ...prev,
+          ordersCount,
+          totalRevenue,
+          bookingsCount,
+          customOrdersCount,
+          spaceBookingsCount,
+        }));
       } catch (err) {
         console.warn('Live stats fetch error:', err);
       }
@@ -52,60 +99,6 @@ export default function AdminDashboardClient({
 
     fetchLiveStats();
   }, []);
-
-  useEffect(() => {
-    try {
-      // 1. Orders
-      let mergedOrders = [...initialRecentOrders];
-      const extraProductsCount = 0;
-
-      // 2. Workshop Bookings
-      const localBookings = JSON.parse(localStorage.getItem('creasphere_workshop_bookings') || '[]');
-      let mergedBookings = [...initialBookings];
-      if (Array.isArray(localBookings) && localBookings.length > 0) {
-        const existingBookingIds = new Set(mergedBookings.map((b) => b.id || b.booking_number));
-        const newBookings = localBookings.filter((b) => !existingBookingIds.has(b.id || b.booking_number));
-        mergedBookings = [...newBookings, ...mergedBookings];
-      }
-
-      // 4. Custom Orders
-      const localCustom = JSON.parse(localStorage.getItem('creasphere_custom_orders_list') || '[]');
-      let mergedCustom = [...initialCustomOrders];
-      if (Array.isArray(localCustom) && localCustom.length > 0) {
-        const existingCustomIds = new Set(mergedCustom.map((c) => c.id || c.order_number));
-        const newCustom = localCustom.filter((c) => !existingCustomIds.has(c.id || c.order_number));
-        mergedCustom = [...newCustom, ...mergedCustom];
-      }
-
-      // 5. Space Rentals
-      const localSpace = JSON.parse(localStorage.getItem('creasphere_space_bookings') || '[]');
-      let mergedSpace = [...initialSpaceBookings];
-      if (Array.isArray(localSpace) && localSpace.length > 0) {
-        const existingSpaceIds = new Set(mergedSpace.map((s) => s.id || s.booking_number));
-        const newSpace = localSpace.filter((s) => !existingSpaceIds.has(s.id || s.booking_number));
-        mergedSpace = [...newSpace, ...mergedSpace];
-      }
-
-      // Recalculate totals
-      const totalRevenue = mergedOrders.reduce((sum, o) => sum + (parseFloat(o.total_amount) || 0), 0);
-
-      setStats({
-        productsCount: initialStats.productsCount + extraProductsCount,
-        ordersCount: Math.max(initialStats.ordersCount, mergedOrders.length),
-        totalRevenue: Math.max(initialStats.totalRevenue, totalRevenue),
-        bookingsCount: Math.max(initialStats.bookingsCount, mergedBookings.length),
-        customOrdersCount: Math.max(initialStats.customOrdersCount, mergedCustom.length),
-        spaceBookingsCount: Math.max(initialStats.spaceBookingsCount, mergedSpace.length),
-      });
-
-      setRecentOrders(mergedOrders.slice(0, 5));
-      setBookings(mergedBookings.slice(0, 5));
-      setCustomOrders(mergedCustom.slice(0, 5));
-      setSpaceBookings(mergedSpace.slice(0, 5));
-    } catch (e) {
-      console.warn('AdminDashboardClient sync error:', e);
-    }
-  }, [initialStats, initialRecentOrders, initialBookings, initialCustomOrders, initialSpaceBookings]);
 
   const getStatusBadge = (status) => {
     switch (status) {

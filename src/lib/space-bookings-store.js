@@ -5,36 +5,7 @@ import os from 'os';
 const BUNDLE_FILE = path.join(process.cwd(), 'src', 'data', 'space_bookings.json');
 const WRITABLE_FILE = path.join(os.tmpdir(), 'creasphere_space_bookings.json');
 
-const INITIAL_SPACE_BOOKINGS = [
-  {
-    id: 'sp-1',
-    booking_number: 'SP-720194',
-    customer_name: 'Наталія Шевченко',
-    customer_phone: '+380 50 234 5678',
-    event_type: 'Дитяче свято / День народження',
-    event_date: '2026-09-20',
-    event_time: '13:00',
-    duration_hours: 3,
-    guests_count: 12,
-    notes: 'День народження сина, потрібні столи для чаювання та проектор для відео',
-    status: 'confirmed',
-    created_at: '2026-09-08 15:40',
-  },
-  {
-    id: 'sp-2',
-    booking_number: 'SP-720150',
-    customer_name: 'Олексій Дмитренко',
-    customer_phone: '+380 67 456 7890',
-    event_type: 'Власний майстер-клас',
-    event_date: '2026-09-22',
-    event_time: '17:00',
-    duration_hours: 2,
-    guests_count: 8,
-    notes: 'Майстер-клас з живопису кавою',
-    status: 'new',
-    created_at: '2026-09-09 09:30',
-  },
-];
+const INITIAL_SPACE_BOOKINGS = [];
 
 export function getSpaceBookings() {
   if (globalThis.__creasphere_space_bookings && Array.isArray(globalThis.__creasphere_space_bookings)) {
@@ -45,7 +16,7 @@ export function getSpaceBookings() {
     if (fs.existsSync(WRITABLE_FILE)) {
       const content = fs.readFileSync(WRITABLE_FILE, 'utf-8');
       const parsed = JSON.parse(content);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         globalThis.__creasphere_space_bookings = parsed;
         return parsed;
       }
@@ -56,7 +27,7 @@ export function getSpaceBookings() {
     if (fs.existsSync(BUNDLE_FILE)) {
       const content = fs.readFileSync(BUNDLE_FILE, 'utf-8');
       const parsed = JSON.parse(content);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         globalThis.__creasphere_space_bookings = parsed;
         return parsed;
       }
