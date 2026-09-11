@@ -13,6 +13,7 @@ jobs:
     env:
       ADMIN_PASSWORD: ci_test_admin_password_2026
       TEST_BASE_URL: http://127.0.0.1:3001
+      NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3001
 
     steps:
       - name: Checkout repository
@@ -34,28 +35,32 @@ jobs:
 
       - name: Run security tests
         run: |
-          npx next dev --hostname 127.0.0.1 --port 3001 &
+          npm run dev -- --hostname 127.0.0.1 --port 3001 > server.log 2>&1 &
           SERVER_PID=$!
-          node -e "
-            const start = Date.now();
-            async function check() {
-              while (Date.now() - start < 45000) {
-                try {
-                  const res = await fetch('http://127.0.0.1:3001/api/products');
-                  if (res.status === 200 || res.status === 401 || res.status === 503) {
-                    console.log('Test server is ready!');
-                    process.exit(0);
-                  }
-                } catch (e) {}
-                await new Promise(r => setTimeout(r, 1000));
-              }
-              console.error('Server failed to start');
-              process.exit(1);
-            }
-            check();
-          "
-          npm test
-          kill $SERVER_PID || true
+
+          for i in $(seq 1 30); do
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3001/api/products || echo "000")
+            if [ "$CODE" != "000" ]; then
+              echo "Dev server is ready with HTTP $CODE after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+
+          if [ "$CODE" = "000" ]; then
+            echo "ERROR: Server failed to start within 30s!"
+            cat server.log
+            exit 1
+          fi
+
+          if ! npm test; then
+            echo "Security tests failed! Dev server log:"
+            cat server.log
+            kill -9 $SERVER_PID 2>/dev/null || true
+            exit 1
+          fi
+
+          kill -9 $SERVER_PID 2>/dev/null || true
 
       - name: Run linter
         run: npm run lint
