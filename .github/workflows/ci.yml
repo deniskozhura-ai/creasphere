@@ -29,9 +29,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Start local test server
+      - name: Run security tests
         run: |
           npx next dev -p 3001 &
+          SERVER_PID=$!
           node -e "
             const start = Date.now();
             async function check() {
@@ -46,9 +47,8 @@ jobs:
             }
             check();
           "
-
-      - name: Run security tests
-        run: npm test
+          npm test
+          kill $SERVER_PID || true
 
       - name: Run linter
         run: npm run lint
