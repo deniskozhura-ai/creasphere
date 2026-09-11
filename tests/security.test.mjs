@@ -618,11 +618,13 @@ async function runAllSecurityTests() {
   }
 
   // -----------------------------------------------------------------
-  // 17. RATE LIMIT -> ENFORCED
+  // 17. RATE LIMIT -> ENFORCED (PER-IP ISOLATION & NAMESPACE SEPARATION)
   // -----------------------------------------------------------------
   console.log('\n--- Test 17: Rate Limit Enforced ---');
   const ATTACKER_IP = `198.51.100.${Math.floor(Math.random() * 200) + 1}`;
+  const INNOCENT_IP = `198.51.100.${Math.floor(Math.random() * 200) + 201}`;
   try {
+    // 1. Single IP hits limit (429)
     let got429 = false;
     for (let i = 0; i < 7; i++) {
       const res = await fetch(`${BASE_URL}/api/admin/auth`, {
@@ -639,6 +641,48 @@ async function runAllSecurityTests() {
       }
     }
     assert(got429, 'Rate limiting enforces HTTP 429 Too Many Requests on repeated requests');
+
+    // 2. Distinct IP has independent limit and is NOT blocked
+    const innocentRes = await fetch(`${BASE_URL}/api/admin/auth`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-forwarded-for': INNOCENT_IP,
+      },
+      body: JSON.stringify({ password: 'wrong_innocent' }),
+    });
+    assert(
+      innocentRes.status === 401,
+      `Different IP has independent rate limit (Innocent IP got ${innocentRes.status}, not 429)`
+    );
+
+    // 3. Different namespaces do not conflict: blocked IP on admin-login is not blocked on orders
+    const orderRes = await fetch(`${BASE_URL}/api/orders`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-forwarded-for': ATTACKER_IP,
+      },
+      body: JSON.stringify({ items: [] }),
+    });
+    assert(
+      orderRes.status === 400,
+      `Different namespaces do not conflict (Blocked IP on admin-login gets 400 on orders, not 429: got ${orderRes.status})`
+    );
+
+    // 4. IP cannot be spoofed via query parameter or body fields
+    const spoofQueryRes = await fetch(`${BASE_URL}/api/admin/auth?ip=1.2.3.4`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-forwarded-for': ATTACKER_IP,
+      },
+      body: JSON.stringify({ password: 'wrong_spoof', ip: '1.2.3.4' }),
+    });
+    assert(
+      spoofQueryRes.status === 429,
+      'IP cannot be spoofed via query parameter (?ip=...) or request body ({ ip: ... })'
+    );
   } catch (e) {
     assert(false, `Test 17 failed: ${e.message}`);
   }
@@ -950,6 +994,23 @@ async function runAllSecurityTests() {
 
     assert(hasNetlifyPriority, 'getClientIp prioritizes Netlify Edge x-nf-client-connection-ip over X-Forwarded-For');
     assert(hasUntrustedProdFallback, 'getClientIp in production avoids trusting user-supplied X-Forwarded-For without edge proxy');
+
+    // 3. Verify canonical per-IP key builder and endpoint key wiring
+    const hasKeyBuilder = rateLimitSrc.includes('export function buildRateLimitKey');
+    const hasPerIpUsage = rateLimitSrc.includes('buildRateLimitKey(action, ip)');
+    assert(hasKeyBuilder && hasPerIpUsage, 'Rate limiter uses buildRateLimitKey to construct canonical ${namespace}:${ip}');
+
+    const authSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/app/api/admin/auth/route.js'), 'utf8');
+    const ordersSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/app/api/orders/route.js'), 'utf8');
+    const customSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/app/api/custom-orders/route.js'), 'utf8');
+    const spaceSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/app/api/space-bookings/route.js'), 'utf8');
+    const wsSrc = fs.readFileSync(path.resolve(process.cwd(), 'src/app/api/workshops/book/route.js'), 'utf8');
+
+    assert(authSrc.includes('`admin-login:${ip}`'), 'Admin login route explicitly passes admin-login:${ip}');
+    assert(ordersSrc.includes('`orders:${ip}`'), 'Orders route explicitly passes orders:${ip}');
+    assert(customSrc.includes('`custom-orders:${ip}`'), 'Custom orders route explicitly passes custom-orders:${ip}');
+    assert(spaceSrc.includes('`space-bookings:${ip}`'), 'Space bookings route explicitly passes space-bookings:${ip}');
+    assert(wsSrc.includes('`workshops:${ip}`'), 'Workshops route explicitly passes workshops:${ip}');
   } catch (e) {
     assert(false, `Test 26 failed: ${e.message}`);
   }

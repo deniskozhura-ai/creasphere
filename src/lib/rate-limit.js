@@ -272,15 +272,28 @@ export async function rateLimit(identifier, limit = 10, windowMs = 60 * 1000) {
 }
 
 /**
+ * Constructs a secure canonical rate limiting identifier: `${namespace}:${ip}`
+ * Prevents double-suffixing if caller already supplied `namespace:${ip}`.
+ */
+export function buildRateLimitKey(action = 'default', ip = '127.0.0.1') {
+  const safeIp = typeof ip === 'string' && ip.trim() ? ip.trim() : '127.0.0.1';
+  let safeAction = typeof action === 'string' && action.trim() ? action.trim() : 'default';
+
+  const ipSuffix = `:${safeIp}`;
+  if (safeAction.endsWith(ipSuffix)) {
+    safeAction = safeAction.slice(0, -ipSuffix.length);
+  }
+
+  return `${safeAction}:${safeIp}`;
+}
+
+/**
  * Convenience helper to enforce rate limits on API route requests
  * Returns NextResponse (429 or 503) if rate limited/unavailable, or null if allowed
  */
 export async function applyRateLimit(request, action = 'default', maxRequests = 10, windowMs = 60 * 1000) {
   const ip = getClientIp(request);
-  const cleanAction = typeof action === 'string'
-    ? action.replace(new RegExp(`:${ip.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`), '')
-    : 'default';
-  const identifier = `${cleanAction}:${ip}`;
+  const identifier = buildRateLimitKey(action, ip);
   const result = await rateLimit(identifier, maxRequests, windowMs);
 
   if (result.serviceUnavailable) {

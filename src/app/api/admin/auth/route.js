@@ -28,7 +28,8 @@ export async function POST(request) {
   try {
     // 1. Rate limiting: 5 failed attempts per 15 minutes per IP + action
     // Prevents credential stuffing / brute force across serverless instances
-    const rateLimitResponse = await applyRateLimit(request, 'admin-login', 5, 15 * 60 * 1000);
+    const ip = getClientIp(request);
+    const rateLimitResponse = await applyRateLimit(request, `admin-login:${ip}`, 5, 15 * 60 * 1000);
     if (rateLimitResponse) {
       return rateLimitResponse;
     }
