@@ -10,8 +10,6 @@ import { DEMO_CATEGORIES } from '@/lib/demo-data';
 import { getProducts } from '@/lib/products-store';
 import { getCategories } from '@/lib/categories-store';
 
-export const dynamic = 'force-dynamic';
-
 export const metadata = {
   title: 'Магазин — CreaSphere',
   description: 'Каталог подарунків ручної роботи, сувенірів та авторських виробів CreaSphere.',
