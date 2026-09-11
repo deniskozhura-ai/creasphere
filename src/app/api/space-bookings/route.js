@@ -46,8 +46,7 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     // 1. Rate Limiting: 10 booking requests per 10 minutes per IP + endpoint
-    const ip = getClientIp(request);
-    const rateLimitResponse = await applyRateLimit(request, `space-booking:${ip}`, 10, 10 * 60 * 1000);
+    const rateLimitResponse = await applyRateLimit(request, 'space-booking', 10, 10 * 60 * 1000);
     if (rateLimitResponse) {
       return rateLimitResponse;
     }

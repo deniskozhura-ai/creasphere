@@ -280,7 +280,7 @@ async function runAllSecurityTests() {
         name: `Price Guard Test Item ${Date.now()}`,
         price: 750,
         stock: 50,
-        category_id: '1',
+        category_id: null,
       }),
     });
     const prodData = await createProdRes.json();
@@ -434,7 +434,7 @@ async function runAllSecurityTests() {
         name: `Limited Race Item ${Date.now()}`,
         price: 100,
         stock: 1,
-        category_id: '1',
+        category_id: null,
       }),
     });
     const prodData = await createProdRes.json();
@@ -571,7 +571,7 @@ async function runAllSecurityTests() {
       const cRes = await apiFetch('/api/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Cookie: adminCookie },
-        body: JSON.stringify({ name: `Mass Test Item ${Date.now()}`, price: 100, stock: 50, category_id: '1' }),
+        body: JSON.stringify({ name: `Mass Test Item ${Date.now()}`, price: 100, stock: 50, category_id: null }),
       });
       const cData = await cRes.json();
       tempProductId16 = cData.product?.id;
@@ -656,7 +656,7 @@ async function runAllSecurityTests() {
       const cRes = await apiFetch('/api/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Cookie: adminCookie },
-        body: JSON.stringify({ name: `PII Test Item ${Date.now()}`, price: 100, stock: 50, category_id: '1' }),
+        body: JSON.stringify({ name: `PII Test Item ${Date.now()}`, price: 100, stock: 50, category_id: null }),
       });
       const cData = await cRes.json();
       tempProductId18 = cData.product?.id;
@@ -1013,6 +1013,155 @@ async function runAllSecurityTests() {
     }
   } catch (e) {
     assert(false, `Test 28 failed: ${e.message}`);
+  }
+
+  // -----------------------------------------------------------------
+  // 29. PRODUCT VALIDATION HARDENING (NO MAGIC 20, NO FAKE CATEGORY_ID)
+  // -----------------------------------------------------------------
+  console.log('\n--- Test 29: Product Validation Hardening ---');
+  try {
+    // 29.1 Missing stock rejected
+    const noStockRes = await apiFetch('/api/products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: adminCookie },
+      body: JSON.stringify({ name: 'No Stock Item', price: 100 }),
+    });
+    assert(noStockRes.status === 400, 'Product creation with missing stock is rejected with HTTP 400');
+
+    // 29.2 Negative stock rejected
+    const negStockRes = await apiFetch('/api/products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: adminCookie },
+      body: JSON.stringify({ name: 'Neg Stock Item', price: 100, stock: -5 }),
+    });
+    assert(negStockRes.status === 400, 'Product creation with negative stock is rejected with HTTP 400');
+
+    // 29.3 Invalid non-UUID category_id rejected
+    const badCatRes = await apiFetch('/api/products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: adminCookie },
+      body: JSON.stringify({ name: 'Bad Cat Item', price: 100, stock: 10, category_id: 'invalid-non-uuid-123' }),
+    });
+    assert(badCatRes.status === 400, 'Product creation with invalid non-UUID category_id is rejected with HTTP 400');
+  } catch (e) {
+    assert(false, `Test 29 failed: ${e.message}`);
+  }
+
+  // -----------------------------------------------------------------
+  // 30. WORKSHOPS PUBLIC FILTERING (ACTIVE ONLY)
+  // -----------------------------------------------------------------
+  console.log('\n--- Test 30: Workshops Public Filtering (Active Only) ---');
+  let testWorkshopId = null;
+  try {
+    // Create an archived workshop as admin
+    const createWRes = await apiFetch('/api/workshops', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: adminCookie },
+      body: JSON.stringify({
+        title: `Archived Test Workshop ${Date.now()}`,
+        status: 'archived',
+        max_participants: 5,
+        available_spots: 5,
+      }),
+    });
+    const createWData = await createWRes.json();
+    testWorkshopId = createWData.workshop?.id;
+
+    if (testWorkshopId) {
+      // Public GET: must NOT contain the archived workshop
+      const publicWRes = await fetch(`${BASE_URL}/api/workshops`);
+      const publicWorkshops = await publicWRes.json();
+      const foundInPublic = (publicWorkshops || []).some((w) => w.id === testWorkshopId);
+      assert(!foundInPublic, 'Public GET /api/workshops excludes archived workshops');
+
+      // Admin GET: must contain the archived workshop
+      const adminWRes = await apiFetch('/api/workshops', {
+        headers: { Cookie: adminCookie },
+      });
+      const adminWorkshops = await adminWRes.json();
+      const foundInAdmin = (adminWorkshops || []).some((w) => w.id === testWorkshopId);
+      assert(foundInAdmin, 'Admin GET /api/workshops includes all workshops');
+
+      // Clean up test workshop
+      await apiFetch(`/api/workshops?id=${testWorkshopId}`, {
+        method: 'DELETE',
+        headers: { Cookie: adminCookie },
+      });
+      testWorkshopId = null;
+    }
+  } catch (e) {
+    if (testWorkshopId) {
+      try {
+        await apiFetch(`/api/workshops?id=${testWorkshopId}`, { method: 'DELETE', headers: { Cookie: adminCookie } });
+      } catch (_) {}
+    }
+    assert(false, `Test 30 failed: ${e.message}`);
+  }
+
+  // -----------------------------------------------------------------
+  // 31. WORKSHOP BOOKING CAPACITY HARDENING (OVERFLOW REJECTED)
+  // -----------------------------------------------------------------
+  console.log('\n--- Test 31: Workshop Booking Capacity Hardening ---');
+  let capWorkshopId = null;
+  try {
+    // Create a workshop with only 2 available spots
+    const capWRes = await apiFetch('/api/workshops', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: adminCookie },
+      body: JSON.stringify({
+        title: `Limited Workshop ${Date.now()}`,
+        status: 'active',
+        max_participants: 5,
+        available_spots: 2,
+      }),
+    });
+    const capWData = await capWRes.json();
+    capWorkshopId = capWData.workshop?.id;
+    const capTitle = capWData.workshop?.title;
+
+    if (capTitle) {
+      // Attempt to book 5 participants when only 2 are available -> MUST BE REJECTED with 400
+      const overflowRes = await apiFetch('/api/workshops/book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_name: 'Overflow Tester',
+          customer_phone: '+380501112233',
+          workshop_title: capTitle,
+          participants_count: 5,
+        }),
+      });
+      assert(overflowRes.status === 400, 'Workshop booking exceeding available spots is rejected with HTTP 400');
+
+      // Attempt to book 2 participants (within limit) -> MUST SUCCEED
+      const validBookRes = await apiFetch('/api/workshops/book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_name: 'Valid Tester',
+          customer_phone: '+380501112233',
+          workshop_title: capTitle,
+          participants_count: 2,
+        }),
+      });
+      const validBookData = await validBookRes.json();
+      assert(validBookRes.status === 200 && validBookData.success, 'Workshop booking within available spots succeeds');
+      if (validBookData.bookingNumber) cleanupWorkshops.push(validBookData.bookingNumber);
+
+      // Clean up test workshop
+      await apiFetch(`/api/workshops?id=${capWorkshopId}`, {
+        method: 'DELETE',
+        headers: { Cookie: adminCookie },
+      });
+      capWorkshopId = null;
+    }
+  } catch (e) {
+    if (capWorkshopId) {
+      try {
+        await apiFetch(`/api/workshops?id=${capWorkshopId}`, { method: 'DELETE', headers: { Cookie: adminCookie } });
+      } catch (_) {}
+    }
+    assert(false, `Test 31 failed: ${e.message}`);
   }
 
 

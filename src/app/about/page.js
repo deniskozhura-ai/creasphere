@@ -5,6 +5,40 @@ export const metadata = {
   description: 'КреаСфера — унікальний творчий простір у Павлограді. Понад 120 локальних майстрів, 5000+ авторських виробів ручної роботи. Наша історія та місія.',
 };
 
+// Clean vector SVG icons for values
+const PaletteIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="13.5" cy="6.5" r=".5" fill="currentColor" />
+    <circle cx="17.5" cy="10.5" r=".5" fill="currentColor" />
+    <circle cx="8.5" cy="7.5" r=".5" fill="currentColor" />
+    <circle cx="6.5" cy="12.5" r=".5" fill="currentColor" />
+    <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.563-2.512 5.563-5.563C22 6.5 17.5 2 12 2Z" />
+  </svg>
+);
+
+const SupportIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+  </svg>
+);
+
+const LeafIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+    <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
+  </svg>
+);
+
+const SparklesIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z" />
+    <path d="M5 3v4" />
+    <path d="M19 17v4" />
+    <path d="M3 5h4" />
+    <path d="M17 19h4" />
+  </svg>
+);
+
 export default function AboutPage() {
   const stats = [
     { number: '5 000+', label: 'виробів ручної роботи' },
@@ -17,22 +51,22 @@ export default function AboutPage() {
     {
       title: 'Підтримка локальних майстрів',
       desc: 'Ми даємо можливість талановитим майстрам Павлограда та України реалізовувати свій потенціал та знайомити світ зі своєю творчістю.',
-      icon: '🎨',
+      icon: <PaletteIcon />,
     },
     {
       title: 'Соціальний вплив',
       desc: 'Багато наших виробів створені людьми, які долають життєві виклики через мистецтво. Кожна покупка — це реальна підтримка.',
-      icon: '🤝',
+      icon: <SupportIcon />,
     },
     {
       title: 'Екологічність та натуральність',
       desc: 'Ми віддаємо перевагу натуральним матеріалам: глина, бавовна, натуральний віск, дерево та безпечні барвники.',
-      icon: '🌿',
+      icon: <LeafIcon />,
     },
     {
       title: 'Творчий коворкінг',
       desc: 'Наш простір відкритий для зустрічей, презентацій, обміну досвідом та спільного створення прекрасного.',
-      icon: '✨',
+      icon: <SparklesIcon />,
     },
   ];
 
@@ -172,7 +206,21 @@ export default function AboutPage() {
                   boxShadow: 'var(--shadow-sm)',
                 }}
               >
-                <div style={{ fontSize: 32, marginBottom: 16 }}>{val.icon}</div>
+                <div
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 14,
+                    background: 'rgba(96, 108, 56, 0.1)',
+                    color: 'var(--sage, #606c38)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 18,
+                  }}
+                >
+                  {val.icon}
+                </div>
                 <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 18, marginBottom: 12 }}>
                   {val.title}
                 </h3>

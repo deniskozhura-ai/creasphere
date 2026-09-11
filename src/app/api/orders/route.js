@@ -49,8 +49,7 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     // 1. Rate limiting: 20 orders per 10 minutes per IP + endpoint
-    const ip = getClientIp(request);
-    const rateLimitResponse = await applyRateLimit(request, `create-order:${ip}`, 20, 10 * 60 * 1000);
+    const rateLimitResponse = await applyRateLimit(request, 'create-order', 20, 10 * 60 * 1000);
     if (rateLimitResponse) {
       return rateLimitResponse;
     }

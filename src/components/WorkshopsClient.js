@@ -198,7 +198,27 @@ export default function WorkshopsClient({ workshopTypes: initialTypes = [] }) {
           </div>
           ) : (
             <div style={{ textAlign: 'center', padding: '48px 16px', color: 'var(--text-muted)' }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>🎨</div>
+              <div
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 14,
+                  background: 'rgba(96, 108, 56, 0.1)',
+                  color: 'var(--sage, #606c38)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 16px',
+                }}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="13.5" cy="6.5" r=".5" fill="currentColor" />
+                  <circle cx="17.5" cy="10.5" r=".5" fill="currentColor" />
+                  <circle cx="8.5" cy="7.5" r=".5" fill="currentColor" />
+                  <circle cx="6.5" cy="12.5" r=".5" fill="currentColor" />
+                  <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.563-2.512 5.563-5.563C22 6.5 17.5 2 12 2Z" />
+                </svg>
+              </div>
               <h3 style={{ fontSize: 20, marginBottom: 8, color: 'var(--text)' }}>Наразі майстер-класів немає</h3>
               <p>Слідкуйте за оновленнями розкладу або зв’яжіться з нами для індивідуального запису.</p>
             </div>

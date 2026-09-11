@@ -229,13 +229,13 @@ export default function SpaceBookingForm() {
               background: '#fff',
             }}
           >
-            <option value="Дитяче свято / День народження">🎂 Дитяче свято / День народження</option>
-            <option value="Власний майстер-клас">🎨 Власний майстер-клас (для майстрів)</option>
-            <option value="Зустріч / Лекція / Презентація">💼 Зустріч / Лекція / Презентація</option>
-            <option value="Коворкінг / Творча оренда">💻 Коворкінг / Творча робота</option>
-            <option value="Фотосесія">📸 Фотосесія у просторі</option>
-            <option value="Корпоративний захід">🎉 Корпоративний захід</option>
-            <option value="Інше">✨ Інший формат</option>
+            <option value="Дитяче свято / День народження">Дитяче свято / День народження</option>
+            <option value="Власний майстер-клас">Власний майстер-клас (для майстрів)</option>
+            <option value="Зустріч / Лекція / Презентація">Зустріч / Лекція / Презентація</option>
+            <option value="Коворкінг / Творча оренда">Коворкінг / Творча робота</option>
+            <option value="Фотосесія">Фотосесія у просторі</option>
+            <option value="Корпоративний захід">Корпоративний захід</option>
+            <option value="Інше">Інший формат</option>
           </select>
         </div>
 
@@ -357,7 +357,7 @@ export default function SpaceBookingForm() {
               cursor: loading ? 'not-allowed' : 'pointer',
             }}
           >
-            {loading ? 'Надсилаємо заявку...' : 'Забронювати простір онлайн 🏛️'}
+            {loading ? 'Надсилаємо заявку...' : 'Забронювати простір онлайн'}
           </button>
         </div>
       </form>

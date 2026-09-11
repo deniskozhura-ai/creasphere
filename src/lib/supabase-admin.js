@@ -49,4 +49,9 @@ export const supabaseAdmin = {
     if (!client) throw new Error('Supabase service role client is not configured.');
     return client.rpc(...args);
   },
+  get storage() {
+    const client = getServiceSupabase();
+    if (!client) throw new Error('Supabase service role client is not configured.');
+    return client.storage;
+  },
 };

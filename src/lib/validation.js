@@ -100,16 +100,47 @@ export function validateProductPayload(data) {
     errors.push('Вкажіть коректну ціну товару (число більше 0)');
   }
 
-  const rawStock = typeof data.stock === 'string' && data.stock.trim() !== '' ? parseInt(data.stock, 10) : data.stock;
-  const parsedStock = validatePositiveInteger(rawStock !== undefined && rawStock !== null && !isNaN(rawStock) ? rawStock : 20, 0, 100000);
-  const stock = parsedStock !== null ? (parsedStock === 0 && data.status !== 'out_of_stock' ? 20 : parsedStock) : 20;
+  // Strict Stock Validation without fabricated fallbacks
+  let stock = 0;
+  const rawStock = typeof data.stock === 'string' && data.stock.trim() !== ''
+    ? parseInt(data.stock, 10)
+    : data.stock;
 
-  const category_id = sanitizeString(data.category_id || '1', 50);
-  const category_name = sanitizeString(data.category_name || 'Подарунки ручної роботи', 100);
+  if (rawStock === undefined || rawStock === null || rawStock === '' || (typeof rawStock === 'number' && isNaN(rawStock))) {
+    errors.push('Кількість товару (stock) обов’язкова');
+  } else {
+    const parsedStock = validatePositiveInteger(rawStock, 0, 100000);
+    if (parsedStock === null) {
+      errors.push('Кількість товару (stock) повинна бути цілим числом >= 0');
+    } else {
+      stock = parsedStock;
+    }
+  }
+
+  // Category ID: Must be valid UUID if provided; optional field, defaults to null (never fake '1')
+  let category_id = null;
+  if (data.category_id !== undefined && data.category_id !== null && String(data.category_id).trim() !== '') {
+    const rawCatId = String(data.category_id).trim();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawCatId);
+    if (!isUuid) {
+      errors.push('Недійсний ідентифікатор категорії (очікується UUID)');
+    } else {
+      category_id = rawCatId;
+    }
+  }
+
+  const category_name = sanitizeString(data.category_name, 100) || null;
   const sku = sanitizeString(data.sku, 50);
-  const status = ['in_stock', 'out_of_stock', 'pre_order', 'active'].includes(data.status)
+
+  // Status must be consistent with stock
+  let status = ['in_stock', 'out_of_stock', 'pre_order', 'active'].includes(data.status)
     ? data.status
     : 'in_stock';
+  if (stock === 0 && status !== 'pre_order') {
+    status = 'out_of_stock';
+  } else if (stock > 0 && status === 'out_of_stock') {
+    status = 'in_stock';
+  }
   const material = sanitizeString(data.material, 100);
   const dimensions = sanitizeString(data.dimensions, 100);
   const production_time = sanitizeString(data.production_time, 100);

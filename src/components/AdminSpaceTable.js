@@ -14,11 +14,6 @@ export default function AdminSpaceTable() {
   // Confirmation modal state (replaces native confirm())
   const [confirmModal, setConfirmModal] = useState({ open: false, id: null });
 
-  // Fetch live data from Supabase via API on mount
-  useEffect(() => {
-    fetchBookings();
-  }, []);
-
   const fetchBookings = async () => {
     try {
       const res = await fetch('/api/space-bookings');
@@ -44,6 +39,11 @@ export default function AdminSpaceTable() {
       setLoading(false);
     }
   };
+
+  // Fetch live data from Supabase via API on mount
+  useEffect(() => {
+    fetchBookings();
+  }, []);
 
   const handleStatusChange = async (id, newStatus) => {
     setUpdatingId(id);

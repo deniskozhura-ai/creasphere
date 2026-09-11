@@ -6,25 +6,59 @@ export const metadata = {
   description: 'Погодинна оренда творчого простору у Павлограді. Для дитячих свят, днів народження, власних майстер-класів, лекцій та зустрічей. Вул. Шевченка, 138б.',
 };
 
+// Clean modern SVG icons for space features
+const StudioIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 21h18M4 18h16M6 18v-7M10 18v-7M14 18v-7M18 18v-7M12 3L2 9h20L12 3z" />
+  </svg>
+);
+
+const ProjectorIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+    <circle cx="12" cy="14" r="3" />
+    <line x1="7" y1="21" x2="5" y2="21" />
+    <line x1="17" y1="21" x2="19" y2="21" />
+    <line x1="12" y1="3" x2="12" y2="7" />
+  </svg>
+);
+
+const LoungeIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 8h1a4 4 0 1 1 0 8h-1" />
+    <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z" />
+    <line x1="6" y1="2" x2="6" y2="4" />
+    <line x1="10" y1="2" x2="10" y2="4" />
+    <line x1="14" y1="2" x2="14" y2="4" />
+  </svg>
+);
+
+const CameraIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+    <circle cx="12" cy="13" r="4" />
+  </svg>
+);
+
 export default function RentPage() {
   const spaceFeatures = [
     {
-      icon: '🏛️',
+      icon: <StudioIcon />,
       title: 'Затишний арт-зал',
       desc: 'Світле, атмосферне приміщення з крафтовим декором, зручними столами та посадкою до 25 гостей.',
     },
     {
-      icon: '📽️',
+      icon: <ProjectorIcon />,
       title: 'Обладнання під ключ',
       desc: 'Мультимедійний проектор, великий екран, якісний звук, швидкісний Wi-Fi та регульоване освітлення.',
     },
     {
-      icon: '☕',
+      icon: <LoungeIcon />,
       title: 'Зона чаювання та відпочинку',
       desc: 'Чайник, крафтовий посуд, келихи, прилади для солодощів. Можна приносити власні частування та торт.',
     },
     {
-      icon: '📸',
+      icon: <CameraIcon />,
       title: 'Фотозона та декор',
       desc: 'Красиві авторські куточки для пам’ятних світлин з вашого свята, презентації чи майстер-класу.',
     },
@@ -33,25 +67,21 @@ export default function RentPage() {
   const eventFormats = [
     {
       title: 'Дитячі свята та дні народження',
-      price: 'від 350 ₴ / год',
       desc: 'Тепла та безпечна атмосфера для діток. Можна замовити творчий майстер-клас або провести власну анімаційну програму.',
       badge: 'Найпопулярніше',
     },
     {
       title: 'Власні майстер-класи та воркшопи',
-      price: 'від 300 ₴ / год',
       desc: 'Ідеальне місце для майстрів, коучів та викладачів: просторі робочі столи, вода, захисні покриття, хороше світло.',
       badge: 'Для майстрів',
     },
     {
       title: 'Лекції, презентації та зустрічі',
-      price: 'від 350 ₴ / год',
       desc: 'Камерний формат для бізнес-зустрічей, клубів за інтересами, книжкових вечорів та семінарів з проектором.',
       badge: 'Діловий',
     },
     {
       title: 'Фотосесії та зйомки контенту',
-      price: 'від 300 ₴ / год',
       desc: 'Естетичний бекграунд ручної роботи, кераміка, сонячне денне світло для створення гарного візуалу.',
       badge: 'Атмосферно',
     },
@@ -97,7 +127,21 @@ export default function RentPage() {
                   boxShadow: '0 4px 20px rgba(0,0,0,0.03)',
                 }}
               >
-                <div style={{ fontSize: 36, marginBottom: 16 }}>{f.icon}</div>
+                <div
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 14,
+                    background: 'rgba(96, 108, 56, 0.1)',
+                    color: 'var(--sage, #606c38)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 16,
+                  }}
+                >
+                  {f.icon}
+                </div>
                 <h3 style={{ fontSize: '1.2rem', fontWeight: 700, margin: '0 0 8px 0', color: 'var(--text)' }}>
                   {f.title}
                 </h3>
@@ -141,7 +185,7 @@ export default function RentPage() {
           </div>
         </section>
 
-        {/* ── Formats and Pricing ── */}
+        {/* ── Formats and Examples of Use ── */}
         <section style={{ marginBottom: 64 }}>
           <div style={{ textAlign: 'center', marginBottom: 36 }}>
             <span
@@ -153,11 +197,14 @@ export default function RentPage() {
                 color: 'var(--sage, #606c38)',
               }}
             >
-              Тарифи та формати
+              Приклади подій
             </span>
             <h2 style={{ fontSize: '2rem', fontWeight: 700, margin: '8px 0 0 0', color: 'var(--text)' }}>
               Для яких подій ви можете орендувати зал
             </h2>
+            <p style={{ maxWidth: 620, margin: '10px auto 0', fontSize: 15, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+              Простір легко трансформується під ваш індивідуальний формат — оберіть потрібний або запропонуйте власний!
+            </p>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 24 }}>
@@ -169,7 +216,7 @@ export default function RentPage() {
                   borderRadius: 20,
                   padding: '30px 24px',
                   border: '1px solid rgba(0,0,0,0.06)',
-                  position: 'relative',
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.02)',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
@@ -180,28 +227,22 @@ export default function RentPage() {
                     style={{
                       fontSize: 11,
                       fontWeight: 700,
-                      padding: '3px 10px',
+                      padding: '4px 12px',
                       borderRadius: 12,
                       background: 'rgba(96, 108, 56, 0.12)',
                       color: 'var(--sage, #606c38)',
                       display: 'inline-block',
-                      marginBottom: 12,
+                      marginBottom: 14,
                     }}
                   >
                     {item.badge}
                   </span>
-                  <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: 8, color: 'var(--text)' }}>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: 10, color: 'var(--text)', lineHeight: 1.35 }}>
                     {item.title}
                   </h3>
-                  <p style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 16 }}>
+                  <p style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>
                     {item.desc}
                   </p>
-                </div>
-                <div style={{ borderTop: '1px solid rgba(0,0,0,0.06)', paddingTop: 14, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Вартість:</span>
-                  <span style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--sage, #606c38)' }}>
-                    {item.price}
-                  </span>
                 </div>
               </div>
             ))}

@@ -277,7 +277,10 @@ export async function rateLimit(identifier, limit = 10, windowMs = 60 * 1000) {
  */
 export async function applyRateLimit(request, action = 'default', maxRequests = 10, windowMs = 60 * 1000) {
   const ip = getClientIp(request);
-  const identifier = `${action}:${ip}`;
+  const cleanAction = typeof action === 'string'
+    ? action.replace(new RegExp(`:${ip.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`), '')
+    : 'default';
+  const identifier = `${cleanAction}:${ip}`;
   const result = await rateLimit(identifier, maxRequests, windowMs);
 
   if (result.serviceUnavailable) {

@@ -124,6 +124,45 @@ const STATIC_WORKSHOPS = [
   },
 ];
 
+// Clean vector SVG icons for workshop benefits
+const PaletteIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="13.5" cy="6.5" r=".5" fill="currentColor" />
+    <circle cx="17.5" cy="10.5" r=".5" fill="currentColor" />
+    <circle cx="8.5" cy="7.5" r=".5" fill="currentColor" />
+    <circle cx="6.5" cy="12.5" r=".5" fill="currentColor" />
+    <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.563-2.512 5.563-5.563C22 6.5 17.5 2 12 2Z" />
+  </svg>
+);
+
+const UsersIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+  </svg>
+);
+
+const GiftIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="8" width="18" height="4" rx="1" />
+    <path d="M12 8v13" />
+    <path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7" />
+    <path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 4.8 0 0 1 12 8a4.8 4.8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5" />
+  </svg>
+);
+
+const TeaIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 8h1a4 4 0 1 1 0 8h-1" />
+    <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z" />
+    <line x1="6" y1="2" x2="6" y2="4" />
+    <line x1="10" y1="2" x2="10" y2="4" />
+    <line x1="14" y1="2" x2="14" y2="4" />
+  </svg>
+);
+
 export const dynamic = 'force-dynamic';
 
 export default async function WorkshopsPage() {
@@ -198,10 +237,10 @@ export default async function WorkshopsPage() {
           gap: 20,
         }}>
           {[
-            { icon: '🎨', title: 'Все включено', desc: 'Усі матеріали, інструменти, фарби та фартухи вже входять у вартість' },
-            { icon: '👥', title: 'Малі групи', desc: 'До 8-10 учасників для максимальної уваги та допомоги майстра кожному' },
-            { icon: '🎁', title: 'Готовий виріб', desc: 'Створений шедевр ви забираєте з собою одразу або після випалу' },
-            { icon: '☕', title: 'Чай та кава', desc: 'Затишні перерви на чай з авторським печивом у творчому колі' },
+            { icon: <PaletteIcon />, title: 'Все включено', desc: 'Усі матеріали, інструменти, фарби та фартухи вже входять у вартість' },
+            { icon: <UsersIcon />, title: 'Малі групи', desc: 'До 8-10 учасників для максимальної уваги та допомоги майстра кожному' },
+            { icon: <GiftIcon />, title: 'Готовий виріб', desc: 'Створений шедевр ви забираєте з собою одразу або після випалу' },
+            { icon: <TeaIcon />, title: 'Чай та кава', desc: 'Затишні перерви на чай з авторським печивом у творчому колі' },
           ].map((feat, idx) => (
             <div
               key={idx}
@@ -213,7 +252,21 @@ export default async function WorkshopsPage() {
                 boxShadow: 'var(--shadow-sm)',
               }}
             >
-              <div style={{ fontSize: 30, marginBottom: 10 }}>{feat.icon}</div>
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 12,
+                  background: 'rgba(96, 108, 56, 0.1)',
+                  color: 'var(--sage, #606c38)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: 14,
+                }}
+              >
+                {feat.icon}
+              </div>
               <h4 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>{feat.title}</h4>
               <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>{feat.desc}</p>
             </div>

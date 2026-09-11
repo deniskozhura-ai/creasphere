@@ -1,15 +1,64 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin, isSupabaseAdminConfigured } from '@/lib/supabase-admin';
 import { requireAdmin } from '@/lib/auth';
-import { sanitizeString } from '@/lib/validation';
+import { sanitizeString, sanitizeImageUrl } from '@/lib/validation';
 
-export async function GET() {
+/**
+ * Automatically uploads data URLs to Supabase Storage bucket 'images'
+ * and returns the public CDN URL to save in database.
+ */
+async function uploadDataUrlToStorage(dataUrl, slug = 'workshop') {
+  if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/') || !isSupabaseAdminConfigured) {
+    return dataUrl;
+  }
+  const match = dataUrl.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+  if (!match) return dataUrl;
+
   try {
+    const rawExt = match[1].toLowerCase();
+    const ext = rawExt === 'jpeg' ? 'jpg' : rawExt;
+    const base64Data = match[2];
+    const buffer = Buffer.from(base64Data, 'base64');
+    const safeSlug = String(slug).replace(/[^a-z0-9_-]/gi, '').slice(0, 30) || 'workshop';
+    const filename = `workshops/${safeSlug}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${ext}`;
+
+    const { error: uploadError } = await supabaseAdmin.storage.from('images').upload(filename, buffer, {
+      contentType: `image/${rawExt}`,
+      upsert: true,
+    });
+
+    if (uploadError) {
+      console.warn('Storage upload error for workshop image:', uploadError.message);
+      return dataUrl;
+    }
+
+    const { data: { publicUrl } } = supabaseAdmin.storage.from('images').getPublicUrl(filename);
+    return publicUrl || dataUrl;
+  } catch (err) {
+    console.warn('Failed to upload workshop image to storage:', err.message);
+    return dataUrl;
+  }
+}
+
+export async function GET(request) {
+  try {
+    const authError = await requireAdmin(request);
+    const isAdmin = !authError;
+
     if (isSupabaseAdminConfigured) {
-      const { data, error } = await supabaseAdmin
-        .from('workshops')
-        .select('*')
-        .order('created_at', { ascending: true });
+      let query = supabaseAdmin.from('workshops');
+
+      if (isAdmin) {
+        query = query.select('*').order('created_at', { ascending: true });
+      } else {
+        // Public API: only active workshops and public catalog fields
+        query = query
+          .select('id, title, slug, description, duration, price, difficulty, difficulty_level, age, image, badge, max_participants, available_spots, registered_count, scheduled_dates, status')
+          .eq('status', 'active')
+          .order('created_at', { ascending: true });
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Supabase get workshops error:', error.message);
@@ -43,7 +92,8 @@ export async function POST(request) {
     const difficulty = sanitizeString(body.difficulty, 100) || 'Початковий';
     const difficulty_level = sanitizeString(body.difficulty_level || body.difficultyLevel, 50) || 'beginner';
     const age = sanitizeString(body.age, 100) || 'від 6 років та дорослі';
-    const image = sanitizeString(body.image, 255) || '/workshop1.jpg';
+    const rawImage = sanitizeImageUrl(body.image, 500000) || '/workshop1.jpg';
+    const image = await uploadDataUrlToStorage(rawImage, slug);
     const badge = sanitizeString(body.badge, 100);
     const max_participants = Number.isInteger(Number(body.max_participants)) ? Number(body.max_participants) : 10;
     const available_spots = Number.isInteger(Number(body.available_spots)) ? Number(body.available_spots) : 10;
@@ -105,7 +155,11 @@ export async function PUT(request) {
     const difficulty = sanitizeString(body.difficulty, 100);
     const difficulty_level = sanitizeString(body.difficulty_level || body.difficultyLevel, 50);
     const age = sanitizeString(body.age, 100);
-    const image = sanitizeString(body.image, 255);
+    let image;
+    if (body.image) {
+      const rawImage = sanitizeImageUrl(body.image, 500000);
+      image = await uploadDataUrlToStorage(rawImage, id);
+    }
     const badge = sanitizeString(body.badge, 100);
     const max_participants = Number.isInteger(Number(body.max_participants)) ? Number(body.max_participants) : undefined;
     const available_spots = Number.isInteger(Number(body.available_spots)) ? Number(body.available_spots) : undefined;

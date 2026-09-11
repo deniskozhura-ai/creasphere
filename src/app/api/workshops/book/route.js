@@ -46,8 +46,7 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     // 1. Rate Limiting: 10 booking requests per 10 minutes per IP + endpoint
-    const ip = getClientIp(request);
-    const rateLimitResponse = await applyRateLimit(request, `workshop-booking:${ip}`, 10, 10 * 60 * 1000);
+    const rateLimitResponse = await applyRateLimit(request, 'workshop-booking', 10, 10 * 60 * 1000);
     if (rateLimitResponse) {
       return rateLimitResponse;
     }
@@ -83,7 +82,60 @@ export async function POST(request) {
     };
 
     if (isSupabaseAdminConfigured) {
+      let matched = null;
       try {
+        // 3. Server-side capacity check: Verify available spots & active status
+        const { data: matchedWorkshops } = await supabaseAdmin
+          .from('workshops')
+          .select('id, title, max_participants, available_spots, registered_count, status')
+          .or(`title.eq.${sanitized.workshop_title},slug.eq.${sanitized.workshop_title}`);
+
+        matched = Array.isArray(matchedWorkshops) && matchedWorkshops.length > 0 ? matchedWorkshops[0] : null;
+
+        if (matched) {
+          if (matched.status !== 'active') {
+            return NextResponse.json(
+              { error: 'Обраний майстер-клас наразі недоступний для бронювання.' },
+              { status: 400 }
+            );
+          }
+
+          const currentSpots = matched.available_spots !== undefined && matched.available_spots !== null
+            ? matched.available_spots
+            : (matched.max_participants - (matched.registered_count || 0));
+
+          if (sanitized.participants_count > currentSpots) {
+            return NextResponse.json(
+              {
+                error: `Неможливо зареєструвати ${sanitized.participants_count} учасників. Доступно вільних місць: ${Math.max(0, currentSpots)}.`,
+              },
+              { status: 400 }
+            );
+          }
+
+          // Atomically decrement spots and increment registered_count with row condition
+          const newSpots = Math.max(0, currentSpots - sanitized.participants_count);
+          const newRegistered = (matched.registered_count || 0) + sanitized.participants_count;
+
+          const { data: updatedWorkshop, error: updateSpotsError } = await supabaseAdmin
+            .from('workshops')
+            .update({
+              available_spots: newSpots,
+              registered_count: newRegistered,
+            })
+            .eq('id', matched.id)
+            .gte('available_spots', sanitized.participants_count)
+            .select()
+            .maybeSingle();
+
+          if (updateSpotsError || !updatedWorkshop) {
+            return NextResponse.json(
+              { error: 'На жаль, недостатньо вільних місць на цей майстер-клас. Спробуйте меншу кількість учасників.' },
+              { status: 400 }
+            );
+          }
+        }
+
         const { error: dbError } = await supabaseAdmin.from('workshop_bookings').insert([
           {
             booking_number: bookingNumber,
@@ -101,6 +153,16 @@ export async function POST(request) {
         ]);
 
         if (dbError) {
+          // Revert spots if booking insert failed
+          if (matched) {
+            await supabaseAdmin
+              .from('workshops')
+              .update({
+                available_spots: matched.available_spots,
+                registered_count: matched.registered_count,
+              })
+              .eq('id', matched.id);
+          }
           console.error('Supabase booking insert error:', dbError.message);
           return NextResponse.json(
             { error: 'Помилка збереження запису в базі даних.' },

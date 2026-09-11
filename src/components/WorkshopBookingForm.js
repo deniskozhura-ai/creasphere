@@ -406,7 +406,7 @@ export default function WorkshopBookingForm({
           justifyContent: 'center',
         }}
       >
-        <span>{loading ? 'Оформлюємо запис...' : 'Підтвердити запис на майстер-клас 🎨'}</span>
+        <span>{loading ? 'Оформлюємо запис...' : 'Підтвердити запис на майстер-клас'}</span>
       </button>
 
       <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-muted)', marginTop: 14 }}>

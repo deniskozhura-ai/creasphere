@@ -99,6 +99,8 @@ export async function POST(request) {
       };
       if (isCatUuid) {
         insertData.category_id = sanitized.category_id;
+      } else {
+        insertData.category_id = null;
       }
 
       const { data: dbProduct, error } = await supabaseAdmin
@@ -185,6 +187,8 @@ export async function PUT(request) {
       };
       if (isCatUuid) {
         updateData.category_id = sanitized.category_id;
+      } else if (body.category_id === null || body.category_id === '') {
+        updateData.category_id = null;
       }
 
       let query = supabaseAdmin

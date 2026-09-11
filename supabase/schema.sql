@@ -147,7 +147,7 @@ CREATE TABLE IF NOT EXISTS workshops (
   registered_count INTEGER DEFAULT 0,
   available_spots INTEGER DEFAULT 10,
   age VARCHAR(100),
-  image VARCHAR(255),
+  image TEXT,
   badge VARCHAR(100),
   scheduled_dates TEXT[] DEFAULT ARRAY[]::TEXT[],
   status VARCHAR(50) DEFAULT 'active',
@@ -433,6 +433,102 @@ $$;
 -- Only service_role can execute atomic order creation
 REVOKE ALL ON FUNCTION public.create_order_atomic(VARCHAR, VARCHAR, VARCHAR, VARCHAR, TEXT, VARCHAR, VARCHAR, TEXT, JSONB) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.create_order_atomic(VARCHAR, VARCHAR, VARCHAR, VARCHAR, TEXT, VARCHAR, VARCHAR, TEXT, JSONB) TO service_role;
+
+-- 3. Atomic Workshop Booking Function with Capacity Check & Row Locking
+CREATE OR REPLACE FUNCTION public.book_workshop_atomic(
+  p_booking_number VARCHAR(100),
+  p_customer_name VARCHAR(255),
+  p_customer_phone VARCHAR(50),
+  p_customer_email VARCHAR(255),
+  p_workshop_title VARCHAR(255),
+  p_participants_count INTEGER,
+  p_participant_age VARCHAR(100),
+  p_preferred_date VARCHAR(100),
+  p_preferred_time VARCHAR(100),
+  p_notes TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_booking_id UUID;
+  v_workshop_id UUID;
+  v_max_participants INTEGER;
+  v_available_spots INTEGER;
+  v_status VARCHAR(50);
+BEGIN
+  -- Validate participants count
+  IF p_participants_count IS NULL OR p_participants_count <= 0 THEN
+    RAISE EXCEPTION 'INVALID_PARTICIPANTS_COUNT';
+  END IF;
+
+  -- Lookup matching workshop by title or slug if exists
+  SELECT id, max_participants, available_spots, status
+  INTO v_workshop_id, v_max_participants, v_available_spots, v_status
+  FROM public.workshops
+  WHERE title = p_workshop_title OR slug = p_workshop_title
+  FOR UPDATE;
+
+  -- If catalog workshop found, enforce status & capacity
+  IF FOUND THEN
+    IF v_status <> 'active' THEN
+      RAISE EXCEPTION 'WORKSHOP_INACTIVE';
+    END IF;
+
+    IF v_available_spots < p_participants_count THEN
+      RAISE EXCEPTION 'INSUFFICIENT_SPOTS: requested %, available %', p_participants_count, v_available_spots;
+    END IF;
+
+    -- Decrement spots atomically
+    UPDATE public.workshops
+    SET available_spots = pg_catalog.greatest(0, available_spots - p_participants_count),
+        registered_count = registered_count + p_participants_count
+    WHERE id = v_workshop_id;
+  END IF;
+
+  -- Insert booking
+  INSERT INTO public.workshop_bookings (
+    booking_number,
+    customer_name,
+    customer_phone,
+    customer_email,
+    workshop_title,
+    participants_count,
+    participant_age,
+    preferred_date,
+    preferred_time,
+    notes,
+    status
+  ) VALUES (
+    p_booking_number,
+    p_customer_name,
+    p_customer_phone,
+    p_customer_email,
+    p_workshop_title,
+    p_participants_count,
+    p_participant_age,
+    p_preferred_date,
+    p_preferred_time,
+    p_notes,
+    'new'
+  ) RETURNING id INTO v_booking_id;
+
+  RETURN pg_catalog.jsonb_build_object(
+    'success', true,
+    'booking_id', v_booking_id,
+    'booking_number', p_booking_number
+  );
+END;
+$$;
+
+-- REVOKE direct execution from PUBLIC, anon, and authenticated roles!
+REVOKE ALL ON FUNCTION public.book_workshop_atomic(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, INTEGER, VARCHAR, VARCHAR, VARCHAR, TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.book_workshop_atomic(VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, INTEGER, VARCHAR, VARCHAR, VARCHAR, TEXT) TO service_role;
+
+-- Ensure workshops image column supports custom data URLs and storage URLs
+ALTER TABLE IF EXISTS workshops ALTER COLUMN image TYPE TEXT;
 
 -- ===================================================
 -- SEED DATA: DEFAULT CATEGORIES
