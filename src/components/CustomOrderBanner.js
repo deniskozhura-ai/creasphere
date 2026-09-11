@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import CustomOrderModal from './CustomOrderModal';
+import dynamic from 'next/dynamic';
+
+const CustomOrderModal = dynamic(() => import('./CustomOrderModal'), { ssr: false });
 
 export default function CustomOrderBanner() {
   const [modalOpen, setModalOpen] = useState(false);
@@ -66,7 +68,7 @@ export default function CustomOrderBanner() {
         </button>
       </div>
 
-      <CustomOrderModal isOpen={modalOpen} onClose={() => setModalOpen(false)} />
+      {modalOpen && <CustomOrderModal isOpen={modalOpen} onClose={() => setModalOpen(false)} />}
     </>
   );
 }

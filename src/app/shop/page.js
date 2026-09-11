@@ -35,18 +35,27 @@ export default async function ShopPage({ searchParams }) {
 
   if (isSupabaseConfigured) {
     try {
+      const categoriesPromise = supabase
+        .from('categories')
+        .select('*')
+        .order('name');
+
       let query = supabase
         .from('products')
         .select('*, categories(name, slug)', { count: 'exact' })
         .in('status', ['active', 'in_stock', 'pre_order']);
 
       if (category) {
-        const { data: cat } = await supabase
-          .from('categories')
-          .select('id')
-          .eq('slug', category)
-          .single();
-        if (cat) query = query.eq('category_id', cat.id);
+        const { data: catData } = await categoriesPromise;
+        if (catData && catData.length > 0) {
+          categories = catData;
+          const cat = catData.find((c) => c.slug === category);
+          if (cat) {
+            query = query.eq('category_id', cat.id);
+          } else {
+            query = query.eq('category_id', '00000000-0000-0000-0000-000000000000');
+          }
+        }
       }
 
       if (minPrice !== null) query = query.gte('price', minPrice);
@@ -62,21 +71,23 @@ export default async function ShopPage({ searchParams }) {
       query = query.order(sortConfig.column, { ascending: sortConfig.ascending });
       query = query.range(offset, offset + PER_PAGE - 1);
 
-      const res = await query;
+      let res;
+      if (category) {
+        res = await query;
+      } else {
+        const [productsRes, catRes] = await Promise.all([query, categoriesPromise]);
+        res = productsRes;
+        if (catRes?.data && catRes.data.length > 0) {
+          categories = catRes.data;
+        }
+      }
+
       if (!res.error && Array.isArray(res.data)) {
         products = res.data.map((p) => ({
           ...p,
           category_name: p.categories?.name || null,
         }));
         count = res.count !== null && res.count !== undefined ? res.count : products.length;
-      }
-
-      const { data: catData } = await supabase
-        .from('categories')
-        .select('*')
-        .order('name');
-      if (catData && catData.length > 0) {
-        categories = catData;
       }
     } catch (e) {
       console.warn('Supabase query fallback to demo data:', e.message);

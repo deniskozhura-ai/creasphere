@@ -57,6 +57,7 @@ export default function Header() {
             <Link
               key={link.href}
               href={link.href}
+              prefetch={link.href === '/shop' ? true : undefined}
               className={`header__link ${pathname === link.href ? 'active' : ''}`}
               onClick={() => { setMenuOpen(false); document.body.style.overflow = ''; }}
             >

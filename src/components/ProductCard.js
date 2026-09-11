@@ -14,7 +14,7 @@ export default function ProductCard({ product }) {
     <div className="product-card">
       <Link href={`/product/${product.slug || product.id}`} className="product-card__image">
         {imageUrl ? (
-          <img src={imageUrl} alt={product.name} loading="lazy" />
+          <img src={imageUrl} alt={product.name} loading="lazy" decoding="async" />
         ) : (
           <div className="no-image">Немає фото</div>
         )}

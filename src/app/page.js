@@ -240,7 +240,7 @@ export default function HomePage() {
             <li className="hero__feature">Тематичні зустрічі та здибанки</li>
           </ul>
           <div className="hero__actions">
-            <Link href="/shop" className="btn btn--primary magnetic">
+            <Link href="/shop" prefetch={true} className="btn btn--primary magnetic">
               <span>Магазин</span>
             </Link>
             <Link href="/workshops" className="btn btn--ghost magnetic">

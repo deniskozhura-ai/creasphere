@@ -26,7 +26,7 @@ export default function Footer() {
           </div>
           <div className="footer__nav">
             <Link href="/">Головна</Link>
-            <Link href="/shop">Магазин</Link>
+            <Link href="/shop" prefetch={true}>Магазин</Link>
             <Link href="/workshops">Майстер-класи</Link>
             <Link href="/rent">Оренда простору</Link>
             <Link href="/about">Про нас</Link>
