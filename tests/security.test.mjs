@@ -553,7 +553,7 @@ async function runAllSecurityTests() {
   try {
     const prodListRes = await apiFetch('/api/products');
     const prodList = await prodListRes.json();
-    let activeProductId = prodList[0]?.id;
+    let activeProductId = prodList.find((p) => (p.stock || 0) > 0)?.id;
     if (!activeProductId) {
       const cRes = await apiFetch('/api/products', {
         method: 'POST',
@@ -637,7 +637,7 @@ async function runAllSecurityTests() {
   try {
     const prodListRes = await apiFetch('/api/products');
     const prodList = await prodListRes.json();
-    let activeProductId = prodList[0]?.id;
+    let activeProductId = prodList.find((p) => (p.stock || 0) > 0)?.id;
     if (!activeProductId) {
       const cRes = await apiFetch('/api/products', {
         method: 'POST',

@@ -5,7 +5,7 @@
     "slug": "gift-box-warm-evening",
     "sku": "CS-GIFT-01",
     "price": 750,
-    "stock": 12,
+    "stock": 100,
     "category_id": "1",
     "category_name": "Подарунки ручної роботи",
     "brand": "CreaSphere",
@@ -16,7 +16,8 @@
     "images": [
       "/gift_collection.webp",
       "/hero_products.webp"
-    ]
+    ],
+    "status": "in_stock"
   },
   {
     "id": "p2",
@@ -24,7 +25,7 @@
     "slug": "ceramic-cup-pavlograd",
     "sku": "CS-CER-02",
     "price": 380,
-    "stock": 8,
+    "stock": 100,
     "category_id": "2",
     "category_name": "Сувеніри та декор",
     "brand": "КреаСфера Арт",
@@ -35,7 +36,8 @@
     "images": [
       "/gallery1.jpg",
       "/gallery2.jpg"
-    ]
+    ],
+    "status": "in_stock"
   },
   {
     "id": "p3",
@@ -43,7 +45,7 @@
     "slug": "kit-young-sculptor",
     "sku": "CS-KIT-03",
     "price": 520,
-    "stock": 15,
+    "stock": 100,
     "category_id": "3",
     "category_name": "Творчі набори",
     "brand": "CreaSphere Kids",
@@ -54,7 +56,8 @@
     "images": [
       "/kids_workshop.webp",
       "/workshop1.jpg"
-    ]
+    ],
+    "status": "in_stock"
   },
   {
     "id": "p4",
@@ -62,7 +65,7 @@
     "slug": "textile-bear-timmy",
     "sku": "CS-TOY-04",
     "price": 640,
-    "stock": 5,
+    "stock": 100,
     "category_id": "4",
     "category_name": "Дитячі іграшки",
     "brand": "Майстерня CreaSphere",
@@ -73,7 +76,8 @@
     "images": [
       "/hero_products.webp",
       "/gallery4.jpg"
-    ]
+    ],
+    "status": "in_stock"
   },
   {
     "id": "p5",
@@ -81,7 +85,7 @@
     "slug": "candle-lavender-garden",
     "sku": "CS-CND-05",
     "price": 320,
-    "stock": 20,
+    "stock": 100,
     "category_id": "2",
     "category_name": "Сувеніри та декор",
     "brand": "CreaSphere Home",
@@ -92,7 +96,8 @@
     "images": [
       "/gallery3.jpg",
       "/gallery5.jpg"
-    ]
+    ],
+    "status": "in_stock"
   },
   {
     "id": "p6",
@@ -100,7 +105,7 @@
     "slug": "kit-mosaic-art",
     "sku": "CS-KIT-06",
     "price": 690,
-    "stock": 7,
+    "stock": 100,
     "category_id": "3",
     "category_name": "Творчі набори",
     "brand": "CreaSphere",
@@ -111,6 +116,7 @@
     "images": [
       "/craft_hands.webp",
       "/workshop2.jpg"
-    ]
+    ],
+    "status": "in_stock"
   }
 ]

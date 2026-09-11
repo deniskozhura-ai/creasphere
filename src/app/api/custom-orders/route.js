@@ -76,7 +76,7 @@ export async function POST(request) {
       budget: sanitized.budget || '',
       deadline: sanitized.deadline || '',
       description: sanitized.description || '',
-      status: 'new',
+      status: 'pending_call',
       created_at: now,
     };
 
@@ -92,7 +92,7 @@ export async function POST(request) {
             budget: newOrder.budget,
             deadline: newOrder.deadline,
             description: newOrder.description,
-            status: 'new',
+            status: 'pending_call',
           },
         ]);
 
@@ -145,7 +145,7 @@ export async function PATCH(request) {
     const id = sanitizeString(body.id, 60);
     const status = sanitizeString(body.status, 50);
 
-    const validStatuses = ['new', 'in_progress', 'completed', 'cancelled'];
+    const validStatuses = ['new', 'pending_call', 'called', 'in_progress', 'completed', 'cancelled'];
     if (!id || !status || !validStatuses.includes(status)) {
       return NextResponse.json({ error: 'Недійсні параметри зміни статусу' }, { status: 400 });
     }
@@ -206,6 +206,11 @@ export async function DELETE(request) {
         console.error('Supabase custom order delete error:', error.message);
         return NextResponse.json({ error: 'Помилка видалення замовлення з бази даних' }, { status: 503 });
       }
+
+      if (process.env.NODE_ENV !== 'production') {
+        try { deleteCustomOrder(id); } catch (e) {}
+      }
+
       return NextResponse.json({ success: true });
     }
 

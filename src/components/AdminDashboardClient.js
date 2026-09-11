@@ -17,6 +17,43 @@ export default function AdminDashboardClient({
   const [spaceBookings, setSpaceBookings] = useState(initialSpaceBookings);
 
   useEffect(() => {
+    const fetchLiveStats = async () => {
+      try {
+        const [customRes, spaceRes] = await Promise.allSettled([
+          fetch('/api/custom-orders'),
+          fetch('/api/space-bookings'),
+        ]);
+
+        if (customRes.status === 'fulfilled' && customRes.value.ok) {
+          const customData = await customRes.value.json();
+          if (Array.isArray(customData)) {
+            setCustomOrders(customData);
+            setStats((prev) => ({
+              ...prev,
+              customOrdersCount: customData.length,
+            }));
+          }
+        }
+
+        if (spaceRes.status === 'fulfilled' && spaceRes.value.ok) {
+          const spaceData = await spaceRes.value.json();
+          if (Array.isArray(spaceData)) {
+            setSpaceBookings(spaceData);
+            setStats((prev) => ({
+              ...prev,
+              spaceBookingsCount: spaceData.length,
+            }));
+          }
+        }
+      } catch (err) {
+        console.warn('Live stats fetch error:', err);
+      }
+    };
+
+    fetchLiveStats();
+  }, []);
+
+  useEffect(() => {
     try {
       // 1. Orders
       let mergedOrders = [...initialRecentOrders];
