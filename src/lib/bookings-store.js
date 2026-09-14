@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { assertNotProduction } from './dev-only-guard';
 
 const BUNDLE_FILE = path.join(process.cwd(), 'src', 'data', 'workshop_bookings.json');
 const WRITABLE_FILE = path.join(os.tmpdir(), 'creasphere_workshop_bookings.json');
@@ -39,9 +40,7 @@ export function getDemoBookings() {
 }
 
 export function addDemoBooking(booking) {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('Local workshop bookings store mutation is disabled in production. Use Supabase database.');
-  }
+  assertNotProduction('addDemoBooking');
   const list = getDemoBookings();
   const updated = [booking, ...list];
   globalThis.__creasphere_bookings = updated;
@@ -60,9 +59,7 @@ export function addDemoBooking(booking) {
 }
 
 export function updateDemoBookingStatus(id, newStatus) {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('Local workshop bookings store mutation is disabled in production. Use Supabase database.');
-  }
+  assertNotProduction('updateDemoBookingStatus');
   const list = getDemoBookings();
   const updated = list.map((b) =>
     b.id === id || b.booking_number === id ? { ...b, status: newStatus } : b
@@ -83,9 +80,7 @@ export function updateDemoBookingStatus(id, newStatus) {
 }
 
 export function deleteDemoBooking(id) {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('Local workshop bookings store mutation is disabled in production. Use Supabase database.');
-  }
+  assertNotProduction('deleteDemoBooking');
   const list = getDemoBookings();
   const updated = list.filter((b) => b.id !== id && b.booking_number !== id);
   globalThis.__creasphere_bookings = updated;

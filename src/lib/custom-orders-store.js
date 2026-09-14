@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { assertNotProduction } from './dev-only-guard';
 
 const BUNDLE_FILE = path.join(process.cwd(), 'src', 'data', 'custom_orders.json');
 const WRITABLE_FILE = path.join(os.tmpdir(), 'creasphere_custom_orders.json');
@@ -39,9 +40,7 @@ export function getCustomOrders() {
 }
 
 export function addCustomOrder(order) {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('Local custom orders store mutation is disabled in production. Use Supabase database.');
-  }
+  assertNotProduction('addCustomOrder');
   const list = getCustomOrders();
   const updated = [order, ...list];
   globalThis.__creasphere_custom_orders = updated;
@@ -60,9 +59,7 @@ export function addCustomOrder(order) {
 }
 
 export function updateCustomOrderStatus(id, newStatus) {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('Local custom orders store mutation is disabled in production. Use Supabase database.');
-  }
+  assertNotProduction('updateCustomOrderStatus');
   const list = getCustomOrders();
   const updated = list.map((item) =>
     item.id === id || item.order_number === id ? { ...item, status: newStatus } : item
@@ -83,9 +80,7 @@ export function updateCustomOrderStatus(id, newStatus) {
 }
 
 export function deleteCustomOrder(id) {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('Local custom orders store mutation is disabled in production. Use Supabase database.');
-  }
+  assertNotProduction('deleteCustomOrder');
   const list = getCustomOrders();
   const updated = list.filter((item) => item.id !== id && item.order_number !== id);
   globalThis.__creasphere_custom_orders = updated;

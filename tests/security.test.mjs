@@ -1025,8 +1025,10 @@ async function runAllSecurityTests() {
 
     const noTmpDirImport = !productsStoreSrc.includes("import os from 'os'") && !productsStoreSrc.includes('os.tmpdir');
     const noTmpFile = !productsStoreSrc.includes('creasphere_products.json');
-    const hasProdAddCheck = productsStoreSrc.includes("if (process.env.NODE_ENV === 'production')") &&
-      productsStoreSrc.includes('Local products store mutation is disabled in production');
+    const hasProdAddCheck =
+      (productsStoreSrc.includes("if (process.env.NODE_ENV === 'production')") &&
+        productsStoreSrc.includes('Local products store mutation is disabled in production')) ||
+      productsStoreSrc.includes('assertNotProduction');
 
     assert(noTmpDirImport, 'products-store.js does NOT import os or os.tmpdir');
     assert(noTmpFile, 'products-store.js does NOT use writable /tmp creasphere_products.json');
@@ -1069,7 +1071,9 @@ async function runAllSecurityTests() {
 
     for (const { file, name } of storesToCheck) {
       const src = fs.readFileSync(path.resolve(process.cwd(), file), 'utf8');
-      const hasThrow = src.includes("process.env.NODE_ENV === 'production'") && src.includes('throw new Error');
+      const hasThrow =
+        (src.includes("process.env.NODE_ENV === 'production'") && src.includes('throw new Error')) ||
+        src.includes('assertNotProduction');
       assert(hasThrow, `Store ${name} disallows local mutations in production`);
     }
   } catch (e) {

@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { DEMO_CATEGORIES } from './demo-data';
+import { assertNotProduction } from './dev-only-guard';
 
 const BUNDLE_FILE = path.join(process.cwd(), 'src', 'data', 'categories.json');
 
@@ -23,9 +24,7 @@ export function getCategories() {
 }
 
 export function addCategory(category) {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('Local categories store mutation is disabled in production. Use Supabase database.');
-  }
+  assertNotProduction('addCategory');
 
   const current = getCategories();
   const updated = [...current.filter((c) => c.id !== category.id && c.slug !== category.slug), category];
@@ -40,9 +39,7 @@ export function addCategory(category) {
 }
 
 export function updateCategory(id, updatedData) {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('Local categories store mutation is disabled in production. Use Supabase database.');
-  }
+  assertNotProduction('updateCategory');
 
   const current = getCategories();
   const updated = current.map((c) => {
@@ -60,9 +57,7 @@ export function updateCategory(id, updatedData) {
 }
 
 export function deleteCategory(id) {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('Local categories store mutation is disabled in production. Use Supabase database.');
-  }
+  assertNotProduction('deleteCategory');
 
   const current = getCategories();
   const updated = current.filter((c) => c.id !== id && c.slug !== id);

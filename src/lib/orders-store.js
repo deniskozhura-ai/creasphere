@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { assertNotProduction } from './dev-only-guard';
 
 const BUNDLE_FILE = path.join(process.cwd(), 'src', 'data', 'orders.json');
 const WRITABLE_FILE = path.join(os.tmpdir(), 'creasphere_orders.json');
@@ -39,9 +40,7 @@ export function getOrders() {
 }
 
 export function addOrder(order) {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('Local orders store mutation is disabled in production. Use Supabase database.');
-  }
+  assertNotProduction('addOrder');
   const list = getOrders();
   const updated = [order, ...list];
   globalThis.__creasphere_orders = updated;
@@ -60,9 +59,7 @@ export function addOrder(order) {
 }
 
 export function updateOrderStatus(id, newStatus) {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('Local orders store mutation is disabled in production. Use Supabase database.');
-  }
+  assertNotProduction('updateOrderStatus');
   const list = getOrders();
   const updated = list.map((item) =>
     item.id === id || item.order_number === id ? { ...item, status: newStatus } : item
@@ -83,9 +80,7 @@ export function updateOrderStatus(id, newStatus) {
 }
 
 export function deleteOrder(id) {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('Local orders store mutation is disabled in production. Use Supabase database.');
-  }
+  assertNotProduction('deleteOrder');
   const list = getOrders();
   const updated = list.filter((item) => item.id !== id && item.order_number !== id);
   globalThis.__creasphere_orders = updated;

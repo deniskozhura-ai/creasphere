@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { DEMO_PRODUCTS } from './demo-data';
+import { assertNotProduction } from './dev-only-guard';
 
 // Static bundled catalog used strictly as read-only seed/fallback in development/testing.
 // In production, Supabase database is the sole authoritative source of truth.
@@ -27,9 +28,7 @@ export function getProducts() {
 }
 
 export function addProduct(product) {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('Local products store mutation is disabled in production. Use Supabase database.');
-  }
+  assertNotProduction('addProduct');
 
   const current = getProducts();
   const updated = [product, ...current.filter((p) => p.id !== product.id && p.sku !== product.sku)];
@@ -44,9 +43,7 @@ export function addProduct(product) {
 }
 
 export function updateProduct(id, updatedData) {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('Local products store mutation is disabled in production. Use Supabase database.');
-  }
+  assertNotProduction('updateProduct');
 
   const current = getProducts();
   const updated = current.map((p) => {
@@ -64,9 +61,7 @@ export function updateProduct(id, updatedData) {
 }
 
 export function deleteProduct(id) {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('Local products store mutation is disabled in production. Use Supabase database.');
-  }
+  assertNotProduction('deleteProduct');
 
   const current = getProducts();
   const updated = current.filter((p) => p.id !== id && p.sku !== id && p.slug !== id);
@@ -83,9 +78,7 @@ export function deleteProduct(id) {
  * In production, atomic decrement is handled strictly by public.create_order_atomic in Supabase.
  */
 export function decrementStockAtomic(items) {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('Local products store stock decrement is disabled in production. Use create_order_atomic Supabase RPC.');
-  }
+  assertNotProduction('decrementStockAtomic');
 
   const products = getProducts();
 
