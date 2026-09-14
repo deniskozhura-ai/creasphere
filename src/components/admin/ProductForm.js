@@ -712,6 +712,7 @@ export default function ProductForm({
                         boxShadow: idx === 0 ? '0 0 0 2px rgba(40, 54, 24, 0.2)' : 'none',
                       }}
                     >
+                      {/* eslint-disable-next-line @next/next/no-img-element -- blob preview before upload */}
                       <img
                         src={img}
                         alt={`Фото ${idx + 1}`}

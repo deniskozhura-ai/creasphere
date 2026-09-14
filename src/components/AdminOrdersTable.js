@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useToast } from '@/components/Toast';
 
 export default function AdminOrdersTable({ initialOrders = [] }) {
@@ -239,10 +240,12 @@ export default function AdminOrdersTable({ initialOrders = [] }) {
                         {order.items.slice(0, 2).map((item, idx) => (
                           <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
                             {item.image && (
-                              <img
+                              <Image
                                 src={item.image}
                                 alt=""
-                                style={{ width: 24, height: 24, borderRadius: 4, objectFit: 'cover' }}
+                                width={24}
+                                height={24}
+                                style={{ borderRadius: 4, objectFit: 'cover' }}
                               />
                             )}
                             <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -466,10 +469,12 @@ export default function AdminOrdersTable({ initialOrders = [] }) {
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
                       {item.image && (
-                        <img
+                        <Image
                           src={item.image}
                           alt=""
-                          style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', background: '#f3f4f6' }}
+                          width={44}
+                          height={44}
+                          style={{ borderRadius: 8, objectFit: 'cover', background: '#f3f4f6' }}
                         />
                       )}
                       <div>

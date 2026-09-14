@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function HomePage() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -226,8 +227,15 @@ export default function HomePage() {
       {/* ═══════════════ HERO ═══════════════ */}
       <section className="hero" id="hero">
         <div className="hero__bg">
-          <div className="hero__image-mask">
-            <img src="/hero_banner_wide.webp" alt="Авторські вироби ручної роботи CreaSphere" fetchPriority="high" />
+          <div className="hero__image-mask" style={{ position: 'relative' }}>
+            <Image
+              src="/hero_banner_wide.webp"
+              alt="Авторські вироби ручної роботи CreaSphere"
+              fill
+              priority
+              sizes="100vw"
+              style={{ objectFit: 'cover' }}
+            />
           </div>
         </div>
         <div className="hero__content">
@@ -279,7 +287,13 @@ export default function HomePage() {
             {galleryImages.map((item, i) => (
               <div className="gallery__item" key={i} onClick={() => openLightbox(i)} style={{ cursor: 'pointer' }}>
                 <div className="gallery__item-img">
-                  <img src={item.src} alt={item.alt} loading="lazy" />
+                  <Image
+                    src={item.src}
+                    alt={item.alt}
+                    fill
+                    sizes="(max-width: 768px) 100vw, 33vw"
+                    style={{ objectFit: 'cover' }}
+                  />
                 </div>
               </div>
             ))}
@@ -425,12 +439,15 @@ export default function HomePage() {
           <button className="lightbox__next" aria-label="Наступне фото" onClick={nextLightbox}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
           </button>
-          <img
+          <Image
             src={galleryImages[currentGalleryIdx]?.src}
             alt={galleryImages[currentGalleryIdx]?.alt || 'Фото'}
+            width={1200}
+            height={900}
             className="lightbox__img"
             id="lightbox-img"
             onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
           />
         </div>
       )}

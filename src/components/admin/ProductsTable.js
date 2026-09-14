@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function ProductsTable({
   products = [],
@@ -90,12 +91,12 @@ export default function ProductsTable({
                 <tr key={item.id}>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <img
+                      <Image
                         src={item.images?.[0] || item.image || '/gift_collection.webp'}
                         alt={item.name}
+                        width={44}
+                        height={44}
                         style={{
-                          width: 44,
-                          height: 44,
                           borderRadius: 8,
                           objectFit: 'cover',
                           background: '#f5f5f5',

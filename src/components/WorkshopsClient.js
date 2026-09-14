@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import WorkshopBookingForm from './WorkshopBookingForm';
 
 export default function WorkshopsClient({ workshopTypes: initialTypes = [] }) {
@@ -75,10 +76,12 @@ export default function WorkshopsClient({ workshopTypes: initialTypes = [] }) {
                 }}
               >
                 <div style={{ position: 'relative', height: 220, overflow: 'hidden', background: 'var(--bg-warm)' }}>
-                  <img
+                  <Image
                     src={item.image}
                     alt={item.title}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    fill
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                    style={{ objectFit: 'cover' }}
                   />
                   <span
                     style={{
@@ -259,10 +262,12 @@ export default function WorkshopsClient({ workshopTypes: initialTypes = [] }) {
                   boxShadow: 'var(--shadow-sm)',
                 }}
               >
-                <img
+                <Image
                   src={photo.src}
                   alt={photo.caption}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 33vw"
+                  style={{ objectFit: 'cover' }}
                 />
                 <div style={{
                   position: 'absolute',

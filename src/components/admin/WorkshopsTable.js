@@ -1,5 +1,7 @@
 'use client';
 
+import Image from 'next/image';
+
 export default function WorkshopsTable({
   workshops = [],
   loading = false,
@@ -127,12 +129,12 @@ export default function WorkshopsTable({
                       <td style={{ padding: '14px 18px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                           {w.image && (
-                            <img
+                            <Image
                               src={w.image}
                               alt={w.title}
+                              width={44}
+                              height={44}
                               style={{
-                                width: 44,
-                                height: 44,
                                 borderRadius: 8,
                                 objectFit: 'cover',
                               }}

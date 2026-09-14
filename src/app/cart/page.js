@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useCart } from '@/components/CartProvider';
 
 export default function CartPage() {
@@ -72,10 +73,13 @@ export default function CartPage() {
                 <tr key={item.id}>
                   <td>
                     <div className="cart-item">
-                      <div className="cart-item__img">
-                        <img
+                      <div className="cart-item__img" style={{ position: 'relative' }}>
+                        <Image
                           src={item.image || '/hero_products.webp'}
                           alt={item.name}
+                          fill
+                          sizes="80px"
+                          style={{ objectFit: 'cover' }}
                         />
                       </div>
                       <div>

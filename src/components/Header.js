@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useCart } from './CartProvider';
 
@@ -44,7 +45,7 @@ export default function Header() {
       <div className="header__inner">
         <Link href="/" className="header__logo" aria-label="CreaSphere — на головну">
           <div className="logo">
-            <img src="/logo.webp" alt="CreaSphere" className="logo__img" />
+            <Image src="/logo.webp" alt="CreaSphere" width={60} height={60} className="logo__img" priority />
             <div className="logo__info">
               <span className="logo__name">КреаСфера</span>
               <span className="logo__subtitle">Центр креативних індустрій</span>

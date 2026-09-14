@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { getBaseUrl } from '@/lib/site-url';
 
 export const metadata = {
@@ -183,16 +184,19 @@ export default function AboutPage() {
 
             <div style={{ position: 'relative' }}>
               <div style={{
+                position: 'relative',
                 borderRadius: 'var(--radius-lg)',
                 overflow: 'hidden',
                 boxShadow: 'var(--shadow-xl)',
                 aspectRatio: '4 / 3',
                 background: 'var(--bg-warm)',
               }}>
-                <img
+                <Image
                   src="/photo_2026-08-01_15-03-05.jpg"
                   alt="Творчий простір CreaSphere у Павлограді"
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  style={{ objectFit: 'cover' }}
                 />
               </div>
             </div>
@@ -309,16 +313,19 @@ export default function AboutPage() {
               <div
                 key={i}
                 style={{
+                  position: 'relative',
                   height: 300,
                   borderRadius: 'var(--radius)',
                   overflow: 'hidden',
                   boxShadow: 'var(--shadow-md)',
                 }}
               >
-                <img
+                <Image
                   src={pic.img}
                   alt={pic.alt}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 33vw"
+                  style={{ objectFit: 'cover' }}
                 />
               </div>
             ))}

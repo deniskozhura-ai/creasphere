@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useCart } from './CartProvider';
 import { useToast } from './Toast';
 
@@ -52,10 +53,14 @@ export default function ProductDetailClient({ product: initialProduct, slug }) {
     <div className="product-page__grid">
       {/* Gallery */}
       <div className="product-gallery">
-        <div className="product-gallery__main">
-          <img
+        <div className="product-gallery__main" style={{ position: 'relative' }}>
+          <Image
             src={images[selectedImage] || images[0]}
             alt={product.name}
+            fill
+            priority
+            sizes="(max-width: 768px) 100vw, 50vw"
+            style={{ objectFit: 'cover' }}
           />
         </div>
         {images.length > 1 && (
@@ -66,8 +71,15 @@ export default function ProductDetailClient({ product: initialProduct, slug }) {
                 type="button"
                 className={`product-gallery__thumb ${selectedImage === idx ? 'active' : ''}`}
                 onClick={() => setSelectedImage(idx)}
+                style={{ position: 'relative' }}
               >
-                <img src={img} alt={`${product.name} - фото ${idx + 1}`} />
+                <Image
+                  src={img}
+                  alt={`${product.name} - фото ${idx + 1}`}
+                  fill
+                  sizes="80px"
+                  style={{ objectFit: 'cover' }}
+                />
               </button>
             ))}
           </div>

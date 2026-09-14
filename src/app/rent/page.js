@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import SpaceBookingForm from '@/components/SpaceBookingForm';
 import { getBaseUrl } from '@/lib/site-url';
 
@@ -221,14 +222,14 @@ export default function RentPage() {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
-            <div style={{ borderRadius: 16, overflow: 'hidden', height: 260 }}>
-              <img src="/workshop_main.jpg" alt="Простір для майстер-класів" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <div style={{ borderRadius: 16, overflow: 'hidden', height: 260, position: 'relative' }}>
+              <Image src="/workshop_main.jpg" alt="Простір для майстер-класів" fill sizes="(max-width: 768px) 100vw, 33vw" style={{ objectFit: 'cover' }} />
             </div>
-            <div style={{ borderRadius: 16, overflow: 'hidden', height: 260 }}>
-              <img src="/about2.jpg" alt="Зона відпочинку" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <div style={{ borderRadius: 16, overflow: 'hidden', height: 260, position: 'relative' }}>
+              <Image src="/about2.jpg" alt="Зона відпочинку" fill sizes="(max-width: 768px) 100vw, 33vw" style={{ objectFit: 'cover' }} />
             </div>
-            <div style={{ borderRadius: 16, overflow: 'hidden', height: 260 }}>
-              <img src="/workshop3.jpg" alt="Свята та події" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <div style={{ borderRadius: 16, overflow: 'hidden', height: 260, position: 'relative' }}>
+              <Image src="/workshop3.jpg" alt="Свята та події" fill sizes="(max-width: 768px) 100vw, 33vw" style={{ objectFit: 'cover' }} />
             </div>
           </div>
         </section>

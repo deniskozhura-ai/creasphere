@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useCart } from './CartProvider';
 
 export default function ProductCard({ product }) {
@@ -14,7 +15,13 @@ export default function ProductCard({ product }) {
     <div className="product-card">
       <Link href={`/product/${product.slug || product.id}`} className="product-card__image">
         {imageUrl ? (
-          <img src={imageUrl} alt={product.name} loading="lazy" decoding="async" />
+          <Image
+            src={imageUrl}
+            alt={product.name}
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+            style={{ objectFit: 'cover' }}
+          />
         ) : (
           <div className="no-image">Немає фото</div>
         )}

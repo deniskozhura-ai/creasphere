@@ -459,6 +459,7 @@ export default function WorkshopForm({
                     border: '1px solid #e2e8f0',
                   }}
                 >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- blob preview before upload */}
                   <img
                     src={form.image}
                     alt="Попередній перегляд"
