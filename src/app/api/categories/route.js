@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin, isSupabaseAdminConfigured } from '@/lib/supabase-admin';
 import { getCategories, addCategory, updateCategory, deleteCategory } from '@/lib/categories-store';
-import { requireAdmin } from '@/lib/auth';
+import { requireAdmin, getAdminLogin } from '@/lib/auth';
 import { sanitizeString } from '@/lib/validation';
 
 const UK_TO_EN = {
@@ -116,6 +116,9 @@ export async function POST(request) {
         );
       }
 
+      const adminLogin = await getAdminLogin(request);
+      console.log(`[ADMIN ACTION] ${adminLogin} CREATE category ${dbCategory.id}`);
+
       return NextResponse.json({
         success: true,
         category: dbCategory,
@@ -139,6 +142,9 @@ export async function POST(request) {
     };
 
     addCategory(newCategory);
+
+    const adminLogin = await getAdminLogin(request);
+    console.log(`[ADMIN ACTION] ${adminLogin} CREATE category ${newCategory.id}`);
 
     return NextResponse.json({
       success: true,
@@ -165,6 +171,9 @@ export async function PUT(request) {
     if (!id) {
       return NextResponse.json({ error: 'ID категорії обов’язковий' }, { status: 400 });
     }
+
+    const adminLogin = await getAdminLogin(request);
+    console.log(`[ADMIN ACTION] ${adminLogin} UPDATE category ${id}`);
 
     const name = sanitizeString(body.name, 100);
     const description = sanitizeString(body.description, 500) || '';
@@ -246,6 +255,9 @@ export async function DELETE(request) {
     if (!id) {
       return NextResponse.json({ error: 'ID категорії обов’язковий' }, { status: 400 });
     }
+
+    const adminLogin = await getAdminLogin(request);
+    console.log(`[ADMIN ACTION] ${adminLogin} DELETE category ${id}`);
 
     if (isSupabaseAdminConfigured) {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);

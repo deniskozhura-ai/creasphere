@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin, isSupabaseAdminConfigured } from '@/lib/supabase-admin';
 import { getDemoBookings, addDemoBooking, updateDemoBookingStatus, deleteDemoBooking } from '@/lib/bookings-store';
-import { requireAdmin } from '@/lib/auth';
+import { requireAdmin, getAdminLogin } from '@/lib/auth';
 import { applyRateLimit, getClientIp } from '@/lib/rate-limit';
 import { validateWorkshopBookingPayload, sanitizeString } from '@/lib/validation';
 
@@ -217,6 +217,9 @@ export async function PATCH(request) {
       return NextResponse.json({ error: 'Недійсні параметри зміни статусу' }, { status: 400 });
     }
 
+    const adminLogin = await getAdminLogin(request);
+    console.log(`[ADMIN ACTION] ${adminLogin} UPDATE workshop_booking ${id}`);
+
     if (isSupabaseAdminConfigured) {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
       let query = supabaseAdmin.from('workshop_bookings').update({ status });
@@ -256,6 +259,9 @@ export async function DELETE(request) {
     if (!id) {
       return NextResponse.json({ error: 'ID запису обов’язковий' }, { status: 400 });
     }
+
+    const adminLogin = await getAdminLogin(request);
+    console.log(`[ADMIN ACTION] ${adminLogin} DELETE workshop_booking ${id}`);
 
     if (isSupabaseAdminConfigured) {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);

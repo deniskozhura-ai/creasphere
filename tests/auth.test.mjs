@@ -274,4 +274,62 @@ describe('Admin Authentication & Access Control (auth)', () => {
     assert.ok(hasProdCheckValidate, 'Production isValidAdminSession fails closed (returns false, never falls back to disk/memory)');
     assert.ok(hasProdCheckRequire, 'Production requireAdmin guard returns HTTP 503 if session store is unavailable');
   });
+
+  test('11. Admin brute-force protection triggers HTTP 429 after 5 failed attempts and fails fast', async () => {
+    const BRUTE_IP = `192.0.2.${Math.floor(Math.random() * 200) + 1}`;
+
+    // Send 5 incorrect attempts
+    for (let i = 1; i <= 5; i++) {
+      const res = await apiFetch('/api/admin/auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-forwarded-for': BRUTE_IP,
+        },
+        body: JSON.stringify({ password: `wrong_pass_${i}` }),
+      });
+      // 1-5 attempts should return 401 or 429 if already hit
+      assert.ok(res.status === 401 || res.status === 429, `Attempt ${i} should be 401 or 429`);
+    }
+
+    // 6th attempt with CORRECT password: MUST BE BLOCKED with 429 (fail fast)
+    const blockedRes = await apiFetch('/api/admin/auth', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-forwarded-for': BRUTE_IP,
+      },
+      body: JSON.stringify({ password: adminPassword }),
+    });
+    assert.equal(blockedRes.status, 429, '6th attempt must be blocked with HTTP 429 even with correct password');
+
+    // Different innocent IP should be allowed
+    const INNOCENT_IP = `192.0.2.${Math.floor(Math.random() * 50) + 201}`;
+    const allowedRes = await apiFetch('/api/admin/auth', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-forwarded-for': INNOCENT_IP,
+      },
+      body: JSON.stringify({ password: adminPassword }),
+    });
+    assert.equal(allowedRes.status, 200, 'Different IP must succeed with HTTP 200');
+  });
+
+  test('12. Admin sessions schema and migrations include admin_login and audit support', () => {
+    const schemaPath = path.resolve(process.cwd(), 'supabase', 'schema.sql');
+    const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+    assert.ok(schemaSql.includes('admin_login TEXT'), 'schema.sql defines admin_login column');
+    assert.ok(schemaSql.includes('admin_login_attempts'), 'schema.sql defines admin_login_attempts table');
+
+    const migrationPath = path.resolve(process.cwd(), 'supabase', 'migrations', '20260914_admin_login_and_audit.sql');
+    assert.ok(fs.existsSync(migrationPath), 'Migration file 20260914_admin_login_and_audit.sql exists');
+    const migrationSql = fs.readFileSync(migrationPath, 'utf8');
+    assert.ok(migrationSql.includes('admin_login'), 'Migration adds admin_login column');
+    assert.ok(migrationSql.includes('admin_login_attempts'), 'Migration creates admin_login_attempts');
+
+    const envExamplePath = path.resolve(process.cwd(), '.env.local.example');
+    const envExample = fs.readFileSync(envExamplePath, 'utf8');
+    assert.ok(envExample.includes('ADMIN_LOGIN='), '.env.local.example includes ADMIN_LOGIN variable');
+  });
 });

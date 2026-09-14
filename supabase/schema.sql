@@ -531,6 +531,34 @@ GRANT EXECUTE ON FUNCTION public.book_workshop_atomic(VARCHAR, VARCHAR, VARCHAR,
 ALTER TABLE IF EXISTS workshops ALTER COLUMN image TYPE TEXT;
 
 -- ===================================================
+-- 8. Admin Sessions Table & Brute Force Protection
+-- ===================================================
+CREATE TABLE IF NOT EXISTS public.admin_sessions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  token_hash VARCHAR(64) UNIQUE NOT NULL,
+  admin_login TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  revoked_at TIMESTAMP WITH TIME ZONE
+);
+
+ALTER TABLE public.admin_sessions ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.admin_sessions FROM PUBLIC, anon, authenticated;
+GRANT ALL ON TABLE public.admin_sessions TO service_role;
+
+CREATE TABLE IF NOT EXISTS public.admin_login_attempts (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  ip VARCHAR(100) NOT NULL,
+  attempted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE public.admin_login_attempts ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.admin_login_attempts FROM PUBLIC, anon, authenticated;
+GRANT ALL ON TABLE public.admin_login_attempts TO service_role;
+
+CREATE INDEX IF NOT EXISTS idx_admin_login_attempts_ip_time ON public.admin_login_attempts(ip, attempted_at DESC);
+
+-- ===================================================
 -- SEED DATA: DEFAULT CATEGORIES
 -- ===================================================
 INSERT INTO public.categories (name, slug, description)
@@ -540,3 +568,4 @@ VALUES
   ('Творчі набори', 'creative-kits', 'Набори для творчості та самостійного створення шедеврів'),
   ('Дитячі іграшки', 'kids-toys', 'Екологічні та безпечні в’язані та дерев’яні іграшки для дітей')
 ON CONFLICT (slug) DO NOTHING;
+

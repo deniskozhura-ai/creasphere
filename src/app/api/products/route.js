@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin, isSupabaseAdminConfigured } from '@/lib/supabase-admin';
 import { getProducts, addProduct, updateProduct, deleteProduct } from '@/lib/products-store';
-import { requireAdmin } from '@/lib/auth';
+import { requireAdmin, getAdminLogin } from '@/lib/auth';
 import { validateProductPayload, sanitizeString } from '@/lib/validation';
 
 export async function GET() {
@@ -122,6 +122,9 @@ export async function POST(request) {
         category_name: dbProduct.categories?.name || dbProduct.category_name || sanitized.category_name,
       };
 
+      const adminLogin = await getAdminLogin(request);
+      console.log(`[ADMIN ACTION] ${adminLogin} CREATE product ${formatted.id}`);
+
       return NextResponse.json({
         success: true,
         product: formatted,
@@ -137,6 +140,9 @@ export async function POST(request) {
     }
 
     addProduct(newProduct);
+
+    const adminLogin = await getAdminLogin(request);
+    console.log(`[ADMIN ACTION] ${adminLogin} CREATE product ${newProduct.id}`);
 
     return NextResponse.json({
       success: true,
@@ -165,6 +171,9 @@ export async function PUT(request) {
     if (!id) {
       return NextResponse.json({ error: 'ID товару обов’язковий' }, { status: 400 });
     }
+
+    const adminLogin = await getAdminLogin(request);
+    console.log(`[ADMIN ACTION] ${adminLogin} UPDATE product ${id}`);
 
     const { isValid, errors, sanitized } = validateProductPayload(body);
     if (!isValid) {
@@ -252,6 +261,9 @@ export async function DELETE(request) {
     if (!id) {
       return NextResponse.json({ error: 'ID товару обов’язковий' }, { status: 400 });
     }
+
+    const adminLogin = await getAdminLogin(request);
+    console.log(`[ADMIN ACTION] ${adminLogin} DELETE product ${id}`);
 
     if (isSupabaseAdminConfigured) {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);

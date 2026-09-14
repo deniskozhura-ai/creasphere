@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin, isSupabaseAdminConfigured } from '@/lib/supabase-admin';
 import { getCustomOrders, addCustomOrder, updateCustomOrderStatus, deleteCustomOrder } from '@/lib/custom-orders-store';
-import { requireAdmin } from '@/lib/auth';
+import { requireAdmin, getAdminLogin } from '@/lib/auth';
 import { applyRateLimit, getClientIp } from '@/lib/rate-limit';
 import { validateCustomOrderPayload, sanitizeString } from '@/lib/validation';
 
@@ -150,6 +150,9 @@ export async function PATCH(request) {
       return NextResponse.json({ error: 'Недійсні параметри зміни статусу' }, { status: 400 });
     }
 
+    const adminLogin = await getAdminLogin(request);
+    console.log(`[ADMIN ACTION] ${adminLogin} UPDATE custom_order ${id}`);
+
     if (isSupabaseAdminConfigured) {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
       let query = supabaseAdmin.from('custom_orders').update({ status });
@@ -189,6 +192,9 @@ export async function DELETE(request) {
     if (!id) {
       return NextResponse.json({ error: 'ID замовлення обов’язковий' }, { status: 400 });
     }
+
+    const adminLogin = await getAdminLogin(request);
+    console.log(`[ADMIN ACTION] ${adminLogin} DELETE custom_order ${id}`);
 
     if (isSupabaseAdminConfigured) {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);

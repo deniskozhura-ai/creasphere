@@ -70,14 +70,120 @@ export function verifyAdminPassword(inputPassword) {
   return crypto.timingSafeEqual(inputBuffer, expectedBuffer);
 }
 
+// Local persistent store path used strictly as dev/test fallback for failed login tracking
+const DEV_FAILED_LOGINS_STORE = path.join(os.tmpdir(), 'creasphere_admin_failed_logins.json');
+
+function readDevFailedLogins() {
+  if (process.env.NODE_ENV === 'production') return {};
+  try {
+    if (fs.existsSync(DEV_FAILED_LOGINS_STORE)) {
+      const data = JSON.parse(fs.readFileSync(DEV_FAILED_LOGINS_STORE, 'utf-8'));
+      return data && typeof data === 'object' ? data : {};
+    }
+  } catch (_) {}
+  return {};
+}
+
+function writeDevFailedLogins(records) {
+  if (process.env.NODE_ENV === 'production') return;
+  try {
+    fs.writeFileSync(DEV_FAILED_LOGINS_STORE, JSON.stringify(records, null, 2), 'utf-8');
+  } catch (_) {}
+}
+
+const BRUTE_FORCE_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const MAX_FAILED_ATTEMPTS = 5;
+
+/**
+ * Checks if an IP has exceeded 5 failed login attempts in 15 minutes.
+ * Fail-fast: Returns { blocked: true, retryAfter } if blocked.
+ */
+export async function checkAdminBruteForce(ip) {
+  if (!ip) return { blocked: false, attempts: 0 };
+
+  const now = Date.now();
+  const windowStart = new Date(now - BRUTE_FORCE_WINDOW_MS).toISOString();
+
+  if (isSupabaseAdminConfigured) {
+    try {
+      const supabase = getServiceSupabase();
+      const { data, error, count } = await supabase
+        .from('admin_login_attempts')
+        .select('id, attempted_at', { count: 'exact' })
+        .eq('ip', ip)
+        .gte('attempted_at', windowStart);
+
+      if (!error && (count !== null || Array.isArray(data))) {
+        const attempts = count ?? (data ? data.length : 0);
+        if (attempts >= MAX_FAILED_ATTEMPTS) {
+          return { blocked: true, retryAfter: 900, attempts };
+        }
+        return { blocked: false, attempts };
+      }
+    } catch (_) {}
+  }
+
+  // Fallback for dev / test mode
+  const records = readDevFailedLogins();
+  const timestamps = (records[ip] || []).filter((t) => t > now - BRUTE_FORCE_WINDOW_MS);
+  if (timestamps.length >= MAX_FAILED_ATTEMPTS) {
+    return { blocked: true, retryAfter: 900, attempts: timestamps.length };
+  }
+
+  return { blocked: false, attempts: timestamps.length };
+}
+
+/**
+ * Records a failed admin login attempt for an IP.
+ */
+export async function recordFailedLogin(ip) {
+  if (!ip) return;
+
+  const now = Date.now();
+  const nowIso = new Date(now).toISOString();
+
+  if (isSupabaseAdminConfigured) {
+    try {
+      const supabase = getServiceSupabase();
+      await supabase.from('admin_login_attempts').insert([{ ip, attempted_at: nowIso }]);
+    } catch (_) {}
+  }
+
+  const records = readDevFailedLogins();
+  const current = (records[ip] || []).filter((t) => t > now - BRUTE_FORCE_WINDOW_MS);
+  current.push(now);
+  records[ip] = current;
+  writeDevFailedLogins(records);
+}
+
+/**
+ * Resets failed login attempts for an IP upon successful login.
+ */
+export async function resetFailedLogins(ip) {
+  if (!ip) return;
+
+  if (isSupabaseAdminConfigured) {
+    try {
+      const supabase = getServiceSupabase();
+      await supabase.from('admin_login_attempts').delete().eq('ip', ip);
+    } catch (_) {}
+  }
+
+  const records = readDevFailedLogins();
+  if (records[ip]) {
+    delete records[ip];
+    writeDevFailedLogins(records);
+  }
+}
+
 /**
  * Creates a cryptographically random session token,
- * hashes it with SHA-256, and stores the hash in the persistent database.
+ * hashes it with SHA-256, and stores the hash and admin_login in the persistent database.
  * Returns the raw unhashed token to be placed in HttpOnly cookie.
  *
  * FAIL CLOSED in production: If database is unavailable, NEVER fall back to local disk/memory!
  */
-export async function createAdminSession() {
+export async function createAdminSession(adminLogin = process.env.ADMIN_LOGIN || 'admin') {
   const rawToken = crypto.randomBytes(32).toString('hex');
   const tokenHash = hashSessionToken(rawToken);
   const now = new Date();
@@ -89,6 +195,7 @@ export async function createAdminSession() {
       const { error } = await supabase.from('admin_sessions').insert([
         {
           token_hash: tokenHash,
+          admin_login: adminLogin,
           created_at: now.toISOString(),
           expires_at: expiresAt.toISOString(),
           revoked_at: null,
@@ -116,6 +223,7 @@ export async function createAdminSession() {
   const sessions = readDevSessions().filter((s) => new Date(s.expires_at) > now);
   sessions.push({
     token_hash: tokenHash,
+    admin_login: adminLogin,
     created_at: now.toISOString(),
     expires_at: expiresAt.toISOString(),
     revoked_at: null,
@@ -123,6 +231,56 @@ export async function createAdminSession() {
   writeDevSessions(sessions);
 
   return rawToken;
+}
+
+/**
+ * Retrieves admin session data by token
+ */
+export async function getAdminSession(rawToken) {
+  if (!rawToken || typeof rawToken !== 'string') return null;
+
+  const tokenHash = hashSessionToken(rawToken);
+  if (!tokenHash) return null;
+
+  const now = new Date();
+
+  if (isSupabaseAdminConfigured) {
+    try {
+      const supabase = getServiceSupabase();
+      const { data, error } = await supabase
+        .from('admin_sessions')
+        .select('token_hash, admin_login, expires_at, revoked_at')
+        .eq('token_hash', tokenHash)
+        .is('revoked_at', null)
+        .gt('expires_at', now.toISOString())
+        .maybeSingle();
+
+      if (error) {
+        console.error('Session lookup error:', error.message);
+        return null;
+      }
+
+      return data;
+    } catch (err) {
+      console.error('Session lookup exception:', err);
+      return null;
+    }
+  }
+
+  // Production requirement: FAIL CLOSED.
+  if (process.env.NODE_ENV === 'production') {
+    return null;
+  }
+
+  // Development/test persistent fallback
+  const sessions = readDevSessions();
+  const session = sessions.find((s) => s.token_hash === tokenHash);
+  if (!session) return null;
+
+  if (session.revoked_at) return null;
+  if (new Date(session.expires_at) <= now) return null;
+
+  return session;
 }
 
 /**
@@ -177,6 +335,20 @@ export async function isValidAdminSession(rawToken) {
   if (new Date(session.expires_at) <= now) return false;
 
   return true;
+}
+
+/**
+ * Helper to get the admin login identifier for audit logging
+ */
+export async function getAdminLogin(request) {
+  try {
+    const token = await getSessionTokenFromRequest(request);
+    if (!token) return process.env.ADMIN_LOGIN || 'admin';
+    const session = await getAdminSession(token);
+    return session?.admin_login || process.env.ADMIN_LOGIN || 'admin';
+  } catch (_) {
+    return process.env.ADMIN_LOGIN || 'admin';
+  }
 }
 
 /**

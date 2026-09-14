@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin, isSupabaseAdminConfigured } from '@/lib/supabase-admin';
 import { getSpaceBookings, addSpaceBooking, updateSpaceBookingStatus, deleteSpaceBooking } from '@/lib/space-bookings-store';
-import { requireAdmin } from '@/lib/auth';
+import { requireAdmin, getAdminLogin } from '@/lib/auth';
 import { applyRateLimit, getClientIp } from '@/lib/rate-limit';
 import { validateSpaceBookingPayload, sanitizeString } from '@/lib/validation';
 
@@ -154,6 +154,9 @@ export async function PATCH(request) {
       return NextResponse.json({ error: 'Недійсні параметри зміни статусу' }, { status: 400 });
     }
 
+    const adminLogin = await getAdminLogin(request);
+    console.log(`[ADMIN ACTION] ${adminLogin} UPDATE space_booking ${id}`);
+
     if (isSupabaseAdminConfigured) {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
       let query = supabaseAdmin.from('space_bookings').update({ status });
@@ -193,6 +196,9 @@ export async function DELETE(request) {
     if (!id) {
       return NextResponse.json({ error: 'ID заявки обов’язковий' }, { status: 400 });
     }
+
+    const adminLogin = await getAdminLogin(request);
+    console.log(`[ADMIN ACTION] ${adminLogin} DELETE space_booking ${id}`);
 
     if (isSupabaseAdminConfigured) {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);

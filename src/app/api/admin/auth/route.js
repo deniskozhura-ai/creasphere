@@ -7,6 +7,9 @@ import {
   isValidAdminSession,
   revokeAdminSession,
   getSessionTokenFromRequest,
+  checkAdminBruteForce,
+  recordFailedLogin,
+  resetFailedLogins,
 } from '@/lib/auth';
 import { applyRateLimit, getClientIp } from '@/lib/rate-limit';
 
@@ -26,10 +29,19 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    // 1. Rate limiting: 5 failed attempts per 15 minutes per IP + action
-    // Prevents credential stuffing / brute force across serverless instances
     const ip = getClientIp(request);
-    const rateLimitResponse = await applyRateLimit(request, `admin-login:${ip}`, 5, 15 * 60 * 1000);
+
+    // 1. Fail-fast brute force check: after 5 failed attempts in 15 mins -> 429
+    const bruteForce = await checkAdminBruteForce(ip);
+    if (bruteForce.blocked) {
+      return NextResponse.json(
+        { error: 'Забагато невдалих спроб входу. Спробуйте пізніше.' },
+        { status: 429, headers: { 'Retry-After': String(bruteForce.retryAfter || 900) } }
+      );
+    }
+
+    // Secondary rate limiting: prevents general resource exhaustion
+    const rateLimitResponse = await applyRateLimit(request, `admin-login:${ip}`, 20, 15 * 60 * 1000);
     if (rateLimitResponse) {
       return rateLimitResponse;
     }
@@ -47,16 +59,21 @@ export async function POST(request) {
     // 2. Timing-safe verification
     const isValid = verifyAdminPassword(password);
     if (!isValid) {
+      await recordFailedLogin(ip);
       return NextResponse.json(
         { error: 'Невірний пароль адміністратора. Спробуйте ще раз.' },
         { status: 401 }
       );
     }
 
-    // 3. Create cryptographically secure persistent session (SHA-256 hashed in DB)
-    const sessionToken = await createAdminSession();
+    // 3. Reset failed attempts counter on successful login
+    await resetFailedLogins(ip);
 
-    // 4. Set HttpOnly Secure SameSite Cookie
+    // 4. Create cryptographically secure persistent session (SHA-256 hashed in DB with admin_login)
+    const adminLogin = process.env.ADMIN_LOGIN || 'admin';
+    const sessionToken = await createAdminSession(adminLogin);
+
+    // 5. Set HttpOnly Secure SameSite Cookie
     const cookieStore = await cookies();
     cookieStore.set(AUTH_COOKIE_NAME, sessionToken, {
       path: '/',
