@@ -227,7 +227,7 @@ export default function HomePage() {
       <section className="hero" id="hero">
         <div className="hero__bg">
           <div className="hero__image-mask">
-            <img src="/hero_banner_wide.png" alt="Авторські вироби ручної роботи CreaSphere" fetchPriority="high" />
+            <img src="/hero_banner_wide.webp" alt="Авторські вироби ручної роботи CreaSphere" fetchPriority="high" />
           </div>
         </div>
         <div className="hero__content">
