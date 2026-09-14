@@ -88,9 +88,9 @@ export default function RootLayout({ children }) {
           addressCountry: 'UA',
         },
         sameAs: [
-          'https://www.instagram.com/creasphere',
+          'https://www.instagram.com/creasphere2024',
           'https://t.me/creasphere',
-          'https://www.facebook.com/creasphere',
+          'https://www.facebook.com/share/1BQ9KfUqPt/',
         ],
       },
       {

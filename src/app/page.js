@@ -360,7 +360,7 @@ export default function HomePage() {
               <h2 className="contact__title reveal-up"><em>Зацікавлені?</em></h2>
               <p className="contact__desc reveal-up">Завітайте до нас або напишіть у зручну для вас соцмережу — ми допоможемо з вибором подарунку, запишемо на майстер-клас або організуємо ваш івент.</p>
               <div className="contact__buttons reveal-up">
-                <a href="https://instagram.com/creasphere" className="btn btn--light btn--icon magnetic" target="_blank" rel="noopener" aria-label="Instagram">
+                <a href="https://instagram.com/creasphere2024" className="btn btn--light btn--icon magnetic" target="_blank" rel="noopener" aria-label="Instagram">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
                 </a>
                 <a href="https://t.me/creasphere" className="btn btn--light btn--icon magnetic" target="_blank" rel="noopener" aria-label="Telegram">

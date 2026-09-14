@@ -30,11 +30,9 @@ export default function Footer() {
             <Link href="/workshops">Майстер-класи</Link>
             <Link href="/rent">Оренда простору</Link>
             <Link href="/about">Про нас</Link>
-            <Link href="/#services">Послуги</Link>
-            <Link href="/#contact">Контакти</Link>
           </div>
           <div className="footer__social" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <a href="https://instagram.com/creasphere" className="footer__social-link" aria-label="Instagram" target="_blank" rel="noopener">
+            <a href="https://instagram.com/creasphere2024" className="footer__social-link" aria-label="Instagram" target="_blank" rel="noopener">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
             </a>
             <a href="https://t.me/creasphere" className="footer__social-link" aria-label="Telegram" target="_blank" rel="noopener">
