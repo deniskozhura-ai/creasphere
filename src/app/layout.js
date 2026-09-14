@@ -1,4 +1,5 @@
 import './globals.css';
+import { headers } from 'next/headers';
 import { CartProvider } from '@/components/CartProvider';
 import { ToastProvider } from '@/components/Toast';
 import Header from '@/components/Header';
@@ -68,7 +69,10 @@ export const metadata = {
   },
 };
 
-export default function RootLayout({ children }) {
+export default async function RootLayout({ children }) {
+  const headersList = await headers();
+  const nonce = headersList.get('x-nonce') || undefined;
+
   const orgWebsiteSchema = {
     '@context': 'https://schema.org',
     '@graph': [
@@ -125,6 +129,7 @@ export default function RootLayout({ children }) {
         />
         <script
           type="application/ld+json"
+          nonce={nonce}
           dangerouslySetInnerHTML={{ __html: JSON.stringify(orgWebsiteSchema) }}
         />
       </head>
