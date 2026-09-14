@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node tests/security.test.mjs"
+    "test": "node tests/runner.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",
