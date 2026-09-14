@@ -77,7 +77,17 @@ export default function ProductDetailClient({ product: initialProduct, slug }) {
       {/* Info */}
       <div className="product-info">
         {(product.category_name || product.categories?.name) && (
-          <div className="product-info__category">{product.category_name || product.categories?.name}</div>
+          (product.category_slug || product.categories?.slug || product.category) ? (
+            <Link
+              href={`/category/${encodeURIComponent(product.category_slug || product.categories?.slug || product.category)}`}
+              className="product-info__category"
+              style={{ textDecoration: 'none', display: 'inline-block' }}
+            >
+              {product.category_name || product.categories?.name}
+            </Link>
+          ) : (
+            <div className="product-info__category">{product.category_name || product.categories?.name}</div>
+          )
         )}
         <h1 className="product-info__title">{product.name}</h1>
         {product.sku && <div className="product-info__sku">Артикул: {product.sku}</div>}

@@ -2,6 +2,10 @@ import Link from 'next/link';
 
 export const metadata = {
   title: 'Сторінку не знайдено — 404 | CreaSphere',
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 export default function NotFound() {

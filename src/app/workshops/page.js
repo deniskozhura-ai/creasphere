@@ -1,10 +1,34 @@
 import Link from 'next/link';
 import WorkshopsClient from '@/components/WorkshopsClient';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { getBaseUrl } from '@/lib/site-url';
 
 export const metadata = {
   title: 'Майстер-класи — CreaSphere | Онлайн-запис у Павлограді',
   description: 'Творчі майстер-класи у Павлограді для дітей та дорослих. Гончарство, мозаїка, свічки, живопис. Онлайн-запис на зручний час.',
+  alternates: {
+    canonical: '/workshops',
+  },
+  openGraph: {
+    title: 'Майстер-класи — CreaSphere | Онлайн-запис у Павлограді',
+    description: 'Творчі майстер-класи у Павлограді для дітей та дорослих. Гончарство, мозаїка, свічки, живопис.',
+    url: '/workshops',
+    type: 'website',
+    images: [
+      {
+        url: '/workshop1.jpg',
+        width: 1200,
+        height: 630,
+        alt: 'Майстер-класи у CreaSphere',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Майстер-класи — CreaSphere | Онлайн-запис у Павлограді',
+    description: 'Творчі майстер-класи у Павлограді для дітей та дорослих. Гончарство, мозаїка, свічки, живопис.',
+    images: ['/workshop1.jpg'],
+  },
 };
 
 const STATIC_WORKSHOPS = [
@@ -200,12 +224,32 @@ export default async function WorkshopsPage() {
   }
 
   // Fallback to static demo workshops ONLY if Supabase is completely unconfigured
-  if (workshopTypes.length === 0 && !isSupabaseConfigured) {
-    workshopTypes = STATIC_WORKSHOPS;
-  }
+  const baseUrl = getBaseUrl();
+  const breadcrumbSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      {
+        '@type': 'ListItem',
+        position: 1,
+        name: 'Головна',
+        item: baseUrl,
+      },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: 'Майстер-класи',
+        item: `${baseUrl}/workshops`,
+      },
+    ],
+  };
 
   return (
     <main>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+      />
       {/* ── Page Header ── */}
       <div className="page-header">
         <div className="container">

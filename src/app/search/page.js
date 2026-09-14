@@ -6,7 +6,12 @@ import SearchProductGrid from '@/components/SearchProductGrid';
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Пошук — CreaSphere',
+  title: 'Пошук товарів — CreaSphere',
+  description: 'Пошук авторських товарів ручної роботи та подарунків у магазині CreaSphere.',
+  robots: {
+    index: false,
+    follow: true,
+  },
 };
 
 export default async function SearchPage({ searchParams }) {

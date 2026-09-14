@@ -1,8 +1,35 @@
 import Link from 'next/link';
+import { getBaseUrl } from '@/lib/site-url';
 
 export const metadata = {
   title: 'Про нас — CreaSphere | Центр креативних індустрій у Павлограді',
-  description: 'КреаСфера — унікальний творчий простір у Павлограді. Понад 120 локальних майстрів, 5000+ авторських виробів ручної роботи. Наша історія та місія.',
+  description:
+    'КреаСфера — унікальний творчий простір у Павлограді. Понад 120 локальних майстрів, 5000+ авторських виробів ручної роботи. Наша історія та місія.',
+  alternates: {
+    canonical: '/about',
+  },
+  openGraph: {
+    title: 'Про нас — CreaSphere | Центр креативних індустрій у Павлограді',
+    description:
+      'КреаСфера — унікальний творчий простір у Павлограді. Понад 120 локальних майстрів, 5000+ авторських виробів ручної роботи.',
+    url: '/about',
+    type: 'website',
+    images: [
+      {
+        url: '/craft_hands.webp',
+        width: 1200,
+        height: 630,
+        alt: 'Простір CreaSphere у Павлограді',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Про нас — CreaSphere | Центр креативних індустрій у Павлограді',
+    description:
+      'КреаСфера — унікальний творчий простір у Павлограді. Понад 120 локальних майстрів, 5000+ авторських виробів ручної роботи.',
+    images: ['/craft_hands.webp'],
+  },
 };
 
 // Clean vector SVG icons for values
@@ -70,8 +97,32 @@ export default function AboutPage() {
     },
   ];
 
+  const baseUrl = getBaseUrl();
+  const breadcrumbSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      {
+        '@type': 'ListItem',
+        position: 1,
+        name: 'Головна',
+        item: baseUrl,
+      },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: 'Про нас',
+        item: `${baseUrl}/about`,
+      },
+    ],
+  };
+
   return (
     <main>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+      />
       {/* ── Page Header ── */}
       <div className="page-header">
         <div className="container">

@@ -1,9 +1,33 @@
 import Link from 'next/link';
 import SpaceBookingForm from '@/components/SpaceBookingForm';
+import { getBaseUrl } from '@/lib/site-url';
 
 export const metadata = {
   title: 'Оренда простору — CreaSphere | Затишний зал для подій у Павлограді',
   description: 'Погодинна оренда творчого простору у Павлограді. Для дитячих свят, днів народження, власних майстер-класів, лекцій та зустрічей. Вул. Шевченка, 138б.',
+  alternates: {
+    canonical: '/rent',
+  },
+  openGraph: {
+    title: 'Оренда простору — CreaSphere | Затишний зал для подій у Павлограді',
+    description: 'Погодинна оренда творчого простору у Павлограді. Для дитячих свят, днів народження, власних майстер-класів, лекцій та зустрічей. Вул. Шевченка, 138б.',
+    url: '/rent',
+    type: 'website',
+    images: [
+      {
+        url: '/hero_products.webp',
+        width: 1200,
+        height: 630,
+        alt: 'Оренда простору CreaSphere',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Оренда простору — CreaSphere | Затишний зал для подій у Павлограді',
+    description: 'Погодинна оренда творчого простору у Павлограді. Для дитячих свят, днів народження, власних майстер-класів, лекцій та зустрічей.',
+    images: ['/hero_products.webp'],
+  },
 };
 
 // Clean modern SVG icons for space features
@@ -87,8 +111,32 @@ export default function RentPage() {
     },
   ];
 
+  const baseUrl = getBaseUrl();
+  const breadcrumbSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      {
+        '@type': 'ListItem',
+        position: 1,
+        name: 'Головна',
+        item: baseUrl,
+      },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: 'Оренда простору',
+        item: `${baseUrl}/rent`,
+      },
+    ],
+  };
+
   return (
     <main>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+      />
       {/* ── Page Header ── */}
       <div className="page-header">
         <div className="container">

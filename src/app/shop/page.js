@@ -9,13 +9,75 @@ import ShopCategoriesSidebar from '@/components/ShopCategoriesSidebar';
 import { DEMO_CATEGORIES } from '@/lib/demo-data';
 import { getProducts } from '@/lib/products-store';
 import { getCategories } from '@/lib/categories-store';
+import { getBaseUrl } from '@/lib/site-url';
 
-export const metadata = {
-  title: 'Магазин — CreaSphere',
-  description: 'Каталог подарунків ручної роботи, сувенірів та авторських виробів CreaSphere.',
-};
+export const dynamic = 'force-dynamic';
 
 const PER_PAGE = 24;
+
+export async function generateMetadata({ searchParams }) {
+  const params = await searchParams;
+  const categorySlug = params?.category;
+
+  let categoryName = null;
+  if (categorySlug) {
+    if (isSupabaseConfigured) {
+      try {
+        const { data } = await supabase
+          .from('categories')
+          .select('name')
+          .eq('slug', categorySlug)
+          .maybeSingle();
+        if (data?.name) categoryName = data.name;
+      } catch (e) {
+        console.warn('Metadata category lookup error:', e.message);
+      }
+    }
+    if (!categoryName) {
+      const cats = getCategories();
+      const found = cats.find((c) => c.slug === categorySlug) || DEMO_CATEGORIES.find((c) => c.slug === categorySlug);
+      if (found?.name) categoryName = found.name;
+    }
+  }
+
+  const title = categoryName
+    ? `${categoryName} — купити в магазині CreaSphere | Павлоград`
+    : 'Магазин авторських виробів та подарунків ручної роботи | CreaSphere';
+
+  const description = categoryName
+    ? `Каталог авторських подарунків у категорії «${categoryName}» ручної роботи в інтернет-магазині CreaSphere.`
+    : 'Каталог подарунків ручної роботи, кераміки, сувенірів та авторських виробів майстрів у Павлограді з доставкою по Україні.';
+
+  const canonicalUrl = categorySlug ? `/category/${encodeURIComponent(categorySlug)}` : '/shop';
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: canonicalUrl,
+    },
+    openGraph: {
+      title,
+      description,
+      url: canonicalUrl,
+      type: 'website',
+      images: [
+        {
+          url: '/hero_products.webp',
+          width: 1200,
+          height: 630,
+          alt: 'Магазин авторських подарунків CreaSphere',
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: ['/hero_products.webp'],
+    },
+  };
+}
 
 export default async function ShopPage({ searchParams }) {
   const params = await searchParams;
@@ -60,10 +122,10 @@ export default async function ShopPage({ searchParams }) {
       if (maxPrice !== null) query = query.lte('price', maxPrice);
 
       const sortMap = {
-        'created_at': { column: 'created_at', ascending: false },
-        'price_asc': { column: 'price', ascending: true },
-        'price_desc': { column: 'price', ascending: false },
-        'name': { column: 'name', ascending: true },
+        created_at: { column: 'created_at', ascending: false },
+        price_asc: { column: 'price', ascending: true },
+        price_desc: { column: 'price', ascending: false },
+        name: { column: 'name', ascending: true },
       };
       const sortConfig = sortMap[sort] || sortMap['created_at'];
       query = query.order(sortConfig.column, { ascending: sortConfig.ascending });
@@ -97,42 +159,71 @@ export default async function ShopPage({ searchParams }) {
     let list = [...getProducts()];
 
     if (category) {
-      const cat = categories.find(c => c.slug === category);
+      const cat = categories.find((c) => c.slug === category);
       if (cat) {
-        list = list.filter(p => String(p.category_id) === String(cat.id));
+        list = list.filter((p) => String(p.category_id) === String(cat.id) || p.category_slug === category);
+      } else {
+        list = [];
       }
     }
 
-    if (minPrice !== null) {
-      list = list.filter(p => p.price >= minPrice);
-    }
-
-    if (maxPrice !== null) {
-      list = list.filter(p => p.price <= maxPrice);
-    }
+    if (minPrice !== null) list = list.filter((p) => p.price >= minPrice);
+    if (maxPrice !== null) list = list.filter((p) => p.price <= maxPrice);
 
     if (sort === 'price_asc') {
       list.sort((a, b) => a.price - b.price);
     } else if (sort === 'price_desc') {
       list.sort((a, b) => b.price - a.price);
     } else if (sort === 'name') {
-      list.sort((a, b) => a.name.localeCompare(b.name, 'uk'));
+      list.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'uk'));
+    } else {
+      list.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
     }
 
     count = list.length;
     products = list.slice(offset, offset + PER_PAGE);
   }
 
-  const totalPages = Math.ceil(count / PER_PAGE);
+  // Final fallback to DEMO_CATEGORIES if empty
+  if (categories.length === 0) {
+    categories = DEMO_CATEGORIES;
+  }
 
+  const totalPages = Math.ceil(count / PER_PAGE);
   const currentParams = {};
-  if (sort && sort !== 'created_at') currentParams.sort = sort;
   if (category) currentParams.category = category;
-  if (minPrice !== null) currentParams.min_price = minPrice.toString();
-  if (maxPrice !== null) currentParams.max_price = maxPrice.toString();
+  if (sort !== 'created_at') currentParams.sort = sort;
+  if (minPrice !== null) currentParams.min_price = minPrice;
+  if (maxPrice !== null) currentParams.max_price = maxPrice;
+
+  const baseUrl = getBaseUrl();
+  const breadcrumbs = [
+    {
+      '@type': 'ListItem',
+      position: 1,
+      name: 'Головна',
+      item: baseUrl,
+    },
+    {
+      '@type': 'ListItem',
+      position: 2,
+      name: 'Магазин',
+      item: `${baseUrl}/shop`,
+    },
+  ];
+
+  const breadcrumbSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: breadcrumbs,
+  };
 
   return (
     <main>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+      />
       <div className="page-header">
         <div className="container">
           <div className="page-header__breadcrumb">
